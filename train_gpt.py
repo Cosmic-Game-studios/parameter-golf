@@ -786,8 +786,15 @@ class Rotary(nn.Module):
         ):
             t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
+            cos = freqs.cos()[None, None, :, :]
+            sin = freqs.sin()[None, None, :, :]
+            # Validation runs under inference_mode(). If we cache those tensors and then reuse
+            # them during training, autograd will reject them when attention saves activations
+            # for backward. Only persist the cache when we're outside inference mode.
+            if torch.is_inference_mode_enabled():
+                return cos.to(dtype=dtype), sin.to(dtype=dtype)
+            self._cos_cached = cos
+            self._sin_cached = sin
             self._seq_len_cached = seq_len
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
