@@ -72,7 +72,29 @@ Important:
 - If you have a warm-start checkpoint, pass it through `INIT_MODEL_PATH=/abs/path/to/checkpoint.pt`.
 - By default it targets the official raw-doc rebuild at `data/official_u4k_unigram/datasets/fineweb10B_spu4096_docs`.
 
-## 5. Scale the same launcher up
+## 5. Reproduce the strong 80-minute continuation
+
+```bash
+RUN_ID=runpod_dense_u4k_12x608_lfqat_continue80m \
+NPROC_PER_NODE=1 \
+scripts/runpod/train_dense_u4k_12x608_lfqat_continue80m.sh
+```
+
+This uses the first official-path H100 checkpoint as a warm start, keeps the legal mixed `int4/int8`
+export family active during training, and runs up to `4800s` so the final raw checkpoint is available
+for export sweeps under `checkpoints/<run_id>_final_model.pt`.
+
+## 6. Sweep legal exports on a saved checkpoint
+
+```bash
+INIT_MODEL_PATH=./checkpoints/runpod_dense_u4k_12x608_lfqat_continue80m_final_model.pt \
+scripts/runpod/eval_dense_u4k_export_sweep.sh
+```
+
+This runs several official full-val export policies against one raw checkpoint and writes a compact
+summary table to `logs/<checkpoint_name>_export_sweep_summary.md`.
+
+## 7. Scale the same launcher up
 
 For a larger pod, keep the same script and only change the process count and wallclock:
 

@@ -1062,9 +1062,14 @@ def main() -> None:
     enable_math_sdp(False)
 
     logfile = None
+    run_checkpoint_pt = None
+    run_checkpoint_int8 = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
+        os.makedirs("checkpoints", exist_ok=True)
         logfile = f"logs/{args.run_id}.txt"
+        run_checkpoint_pt = f"checkpoints/{args.run_id}_final_model.pt"
+        run_checkpoint_int8 = f"checkpoints/{args.run_id}_final_model.int8.ptz"
         print(logfile)
 
     def log0(msg: str, console: bool = True) -> None:
@@ -1447,6 +1452,8 @@ def main() -> None:
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
+        if run_checkpoint_pt is not None:
+            torch.save(base_model.state_dict(), run_checkpoint_pt)
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
@@ -1462,6 +1469,9 @@ def main() -> None:
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
             f.write(quant_blob)
+        if run_checkpoint_int8 is not None:
+            with open(run_checkpoint_int8, "wb") as f:
+                f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
