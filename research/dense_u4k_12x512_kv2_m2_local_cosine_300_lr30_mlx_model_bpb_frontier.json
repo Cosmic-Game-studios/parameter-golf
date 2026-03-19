@@ -1,0 +1,162 @@
+{
+  "checkpoint": "logs/dense_u4k_12x512_kv2_m2_local_cosine_300_lr30_mlx_model.npz",
+  "baseline": {
+    "name": "baseline",
+    "patterns": [],
+    "log_path": "logs/frontier_baseline.txt",
+    "compressed_bytes": 15433326,
+    "counted_code_bytes": 50962,
+    "total_bytes": 15484288,
+    "val_loss": 4.70743704,
+    "val_bpb": 2.05310549,
+    "bytes_saved_vs_baseline": -15484288,
+    "bpb_delta_vs_baseline": 2.05310549,
+    "efficiency_bytes_per_bpb": null
+  },
+  "top_single_candidates": [
+    {
+      "name": "mlp.fc.weight__layer_10",
+      "patterns": [
+        "blocks.10.mlp.fc.weight"
+      ],
+      "log_path": "logs/frontier_mlp_fc_weight_layer_10.txt",
+      "compressed_bytes": 15146694,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15197656,
+      "val_loss": 4.7074523,
+      "val_bpb": 2.05311214,
+      "bytes_saved_vs_baseline": 286632,
+      "bpb_delta_vs_baseline": 6.649999999996936e-06,
+      "efficiency_bytes_per_bpb": 43102556390.9973
+    },
+    {
+      "name": "mlp.fc.weight__layer_11",
+      "patterns": [
+        "blocks.11.mlp.fc.weight"
+      ],
+      "log_path": "logs/frontier_mlp_fc_weight_layer_11.txt",
+      "compressed_bytes": 15145605,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15196567,
+      "val_loss": 4.70746899,
+      "val_bpb": 2.05311942,
+      "bytes_saved_vs_baseline": 287721,
+      "bpb_delta_vs_baseline": 1.392999999971778e-05,
+      "efficiency_bytes_per_bpb": 20654773869.765198
+    },
+    {
+      "name": "mlp.proj.weight__layer_11",
+      "patterns": [
+        "blocks.11.mlp.proj.weight"
+      ],
+      "log_path": "logs/frontier_mlp_proj_weight_layer_11.txt",
+      "compressed_bytes": 15171502,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15222464,
+      "val_loss": 4.70746803,
+      "val_bpb": 2.053119,
+      "bytes_saved_vs_baseline": 261824,
+      "bpb_delta_vs_baseline": 1.3510000000049871e-05,
+      "efficiency_bytes_per_bpb": 19380014803.777462
+    },
+    {
+      "name": "mlp.proj.weight__layer_7",
+      "patterns": [
+        "blocks.7.mlp.proj.weight"
+      ],
+      "log_path": "logs/frontier_mlp_proj_weight_layer_7.txt",
+      "compressed_bytes": 15175695,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15226657,
+      "val_loss": 4.70748854,
+      "val_bpb": 2.05312795,
+      "bytes_saved_vs_baseline": 257631,
+      "bpb_delta_vs_baseline": 2.245999999983539e-05,
+      "efficiency_bytes_per_bpb": 11470658949.327168
+    },
+    {
+      "name": "mlp.proj.weight__layer_10",
+      "patterns": [
+        "blocks.10.mlp.proj.weight"
+      ],
+      "log_path": "logs/frontier_mlp_proj_weight_layer_10.txt",
+      "compressed_bytes": 15172100,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15223062,
+      "val_loss": 4.7075305,
+      "val_bpb": 2.05314625,
+      "bytes_saved_vs_baseline": 261226,
+      "bpb_delta_vs_baseline": 4.076000000008406e-05,
+      "efficiency_bytes_per_bpb": 6408881256.120247
+    },
+    {
+      "name": "mlp.proj.weight__layer_9",
+      "patterns": [
+        "blocks.9.mlp.proj.weight"
+      ],
+      "log_path": "logs/frontier_mlp_proj_weight_layer_9.txt",
+      "compressed_bytes": 15172978,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15223940,
+      "val_loss": 4.7076354,
+      "val_bpb": 2.053192,
+      "bytes_saved_vs_baseline": 260348,
+      "bpb_delta_vs_baseline": 8.651000000003961e-05,
+      "efficiency_bytes_per_bpb": 3009455554.2698045
+    },
+    {
+      "name": "mlp.proj.weight__layer_8",
+      "patterns": [
+        "blocks.8.mlp.proj.weight"
+      ],
+      "log_path": "logs/frontier_mlp_proj_weight_layer_8.txt",
+      "compressed_bytes": 15173343,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15224305,
+      "val_loss": 4.70764399,
+      "val_bpb": 2.05319574,
+      "bytes_saved_vs_baseline": 259983,
+      "bpb_delta_vs_baseline": 9.024999999995842e-05,
+      "efficiency_bytes_per_bpb": 2880698060.9431553
+    },
+    {
+      "name": "mlp.fc.weight__layer_9",
+      "patterns": [
+        "blocks.9.mlp.fc.weight"
+      ],
+      "log_path": "logs/frontier_mlp_fc_weight_layer_9.txt",
+      "compressed_bytes": 15143854,
+      "counted_code_bytes": 50962,
+      "total_bytes": 15194816,
+      "val_loss": 4.70773792,
+      "val_bpb": 2.05323671,
+      "bytes_saved_vs_baseline": 289472,
+      "bpb_delta_vs_baseline": 0.00013122000000009848,
+      "efficiency_bytes_per_bpb": 2206005182.135214
+    }
+  ],
+  "best_combo": {
+    "name": "greedy_step_4__mlp.fc.weight__layer_9__mlp.fc.weight__layer_11__mlp.fc.weight__layer_10__mlp.proj.weight__layer_10",
+    "patterns": [
+      "blocks.10.mlp.fc.weight",
+      "blocks.10.mlp.proj.weight",
+      "blocks.11.mlp.fc.weight",
+      "blocks.9.mlp.fc.weight"
+    ],
+    "log_path": "logs/frontier_greedy_step_4_mlp_fc_weight_layer_9_mlp_fc_weight_layer_11_mlp_fc_weight_layer_10_mlp_proj_weight_layer_10.txt",
+    "compressed_bytes": 14303380,
+    "counted_code_bytes": 50962,
+    "total_bytes": 14354342,
+    "val_loss": 4.7078557,
+    "val_bpb": 2.05328808,
+    "bytes_saved_vs_baseline": 1129946,
+    "bpb_delta_vs_baseline": 0.0001825900000000935,
+    "efficiency_bytes_per_bpb": 6188433101.48103
+  },
+  "selected_candidates": [
+    "mlp.fc.weight__layer_9",
+    "mlp.fc.weight__layer_11",
+    "mlp.fc.weight__layer_10",
+    "mlp.proj.weight__layer_10"
+  ]
+}

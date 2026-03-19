@@ -14,9 +14,11 @@ import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 import numpy as np
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, hf_hub_url
 from huggingface_hub.utils import EntryNotFoundError
 
 
@@ -33,6 +35,29 @@ DEFAULT_REMOTE_ROOT = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "data
 DEFAULT_CONFIG = Path(__file__).with_name("tokenizer_specs.json")
 TOKENIZER_THREADS = max(1, int(os.environ.get("MATCHED_FINEWEB_TOKENIZER_THREADS", str(os.cpu_count() or 8))))
 SP_BATCH_SIZE = max(1, int(os.environ.get("MATCHED_FINEWEB_SP_BATCH_SIZE", "1024")))
+
+
+@dataclass(frozen=True)
+class DocsSource:
+    local_path: Path | None
+    repo_id: str
+    remote_root: str
+    filename: str = DOCS_FILENAME
+
+    @property
+    def remote_path(self) -> Path:
+        return resolve_remote_path(remote_root=self.remote_root, filename=self.filename)
+
+    @property
+    def remote_ref(self) -> str:
+        return f"hf://datasets/{self.repo_id}/{self.remote_path.as_posix()}"
+
+    def iter_lines(self):
+        if self.local_path is not None:
+            with self.local_path.open("r", encoding="utf-8") as f:
+                yield from f
+            return
+        yield from iter_remote_hf_lines(repo_id=self.repo_id, remote_path=self.remote_path)
 
 
 @dataclass(frozen=True)
@@ -74,18 +99,51 @@ def docs_sidecar_path(docs_jsonl: Path) -> Path:
     return docs_jsonl.with_name(f"{docs_jsonl.stem}.source_manifest.json")
 
 
-def maybe_load_docs_sidecar_meta(docs_jsonl: Path) -> dict[str, Any] | None:
-    sidecar_path = docs_sidecar_path(docs_jsonl)
-    if not sidecar_path.is_file():
+def maybe_load_json_object(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
         return None
-    payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"docs sidecar must be a JSON object: {sidecar_path}")
+        raise ValueError(f"expected a JSON object: {path}")
     return payload
 
 
+def resolve_remote_path(*, remote_root: str, filename: str) -> Path:
+    return Path(remote_root) / filename if remote_root else Path(filename)
+
+
+def hf_auth_headers() -> dict[str, str]:
+    token = (
+        os.environ.get("HF_TOKEN")
+        or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+        or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    )
+    return {} if not token else {"Authorization": f"Bearer {token}"}
+
+
+def iter_remote_hf_lines(*, repo_id: str, remote_path: Path):
+    url = hf_hub_url(
+        repo_id=repo_id,
+        filename=remote_path.name,
+        subfolder=remote_path.parent.as_posix() if remote_path.parent != Path(".") else None,
+        repo_type="dataset",
+    )
+    request = Request(url, headers=hf_auth_headers())
+    try:
+        with urlopen(request) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            for raw_line in response:
+                yield raw_line.decode(charset)
+    except HTTPError as exc:
+        if exc.code == 404:
+            raise FileNotFoundError(f"{remote_path.as_posix()} not found in Hugging Face dataset repo {repo_id}") from exc
+        raise RuntimeError(f"failed to stream {remote_path.as_posix()} from {repo_id}: HTTP {exc.code}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"failed to stream {remote_path.as_posix()} from {repo_id}: {exc}") from exc
+
+
 def copy_from_hf_cache(*, repo_id: str, remote_root: str, filename: str, destination: Path) -> bool:
-    remote_path = Path(remote_root) / filename if remote_root else Path(filename)
+    remote_path = resolve_remote_path(remote_root=remote_root, filename=filename)
     try:
         cached_path = Path(
             hf_hub_download(
@@ -109,20 +167,18 @@ def copy_from_hf_cache(*, repo_id: str, remote_root: str, filename: str, destina
     return True
 
 
-def iter_docs(path: Path):
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            yield json.loads(line)["text"]
+def iter_docs(source: DocsSource):
+    for line in source.iter_lines():
+        yield json.loads(line)["text"]
 
 
-def count_docs(path: Path) -> int:
-    with path.open("r", encoding="utf-8") as f:
-        return sum(1 for _ in f)
+def count_docs(source: DocsSource) -> int:
+    return sum(1 for _ in source.iter_lines())
 
 
-def batched_docs_jsonl(path: Path, batch_size: int):
+def batched_docs(source: DocsSource, batch_size: int):
     batch: list[str] = []
-    for text in iter_docs(path):
+    for text in iter_docs(source):
         batch.append(text)
         if len(batch) == batch_size:
             yield batch
@@ -217,18 +273,17 @@ def write_tokenizer_config_export(output_root: Path, selected_specs: list[dict[s
     return path
 
 
-def _iter_sentencepiece_text(docs_jsonl: Path, *, max_docs: int | None = None):
-    with docs_jsonl.open("r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            if max_docs is not None and i >= max_docs:
-                break
-            text = json.loads(line)["text"].replace("\x00", " ").strip()
-            if text:
-                yield text
+def _iter_sentencepiece_text(source: DocsSource, *, max_docs: int | None = None):
+    for i, line in enumerate(source.iter_lines()):
+        if max_docs is not None and i >= max_docs:
+            break
+        text = json.loads(line)["text"].replace("\x00", " ").strip()
+        if text:
+            yield text
 
 
-def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
-    del docs_jsonl
+def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_source: DocsSource, tokenizers_dir: Path) -> dict[str, Any]:
+    del docs_source
     tok = default_pure_byte_tokenizer()
     path = tokenizers_dir / spec.get("filename", "fineweb_pure_byte_260.json")
     tok.save_json(path)
@@ -245,7 +300,7 @@ def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokeniz
     }
 
 
-def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
+def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_source: DocsSource, tokenizers_dir: Path) -> dict[str, Any]:
     try:
         import sentencepiece as spm
     except ImportError as exc:
@@ -272,7 +327,7 @@ def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tok
     else:
         kwargs = {
             "sentence_iterator": _iter_sentencepiece_text(
-                docs_jsonl,
+                docs_source,
                 max_docs=None if spec.get("tokenizer_train_docs") is None else int(spec["tokenizer_train_docs"]),
             ),
             "model_prefix": str(prefix),
@@ -307,7 +362,7 @@ def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tok
 
 
 def export_shards(
-    docs_jsonl: Path,
+    docs_source: DocsSource,
     tok: dict[str, Any],
     output_dir: Path,
     *,
@@ -352,7 +407,7 @@ def export_shards(
 
     batch_encode = tok.get("encode_batch")
     batch_size = SP_BATCH_SIZE if callable(batch_encode) else 1
-    for texts in batched_docs_jsonl(docs_jsonl, batch_size):
+    for texts in batched_docs(docs_source, batch_size):
         encoded_docs = batch_encode(texts) if callable(batch_encode) else [tok["encode"](text) for text in texts]
         for text, encoded in zip(texts, encoded_docs, strict=True):
             del text
@@ -398,7 +453,7 @@ def export_shards(
 def build_tokenizers(
     *,
     specs: list[dict[str, Any]],
-    docs_jsonl: Path,
+    docs_source: DocsSource,
     tokenizers_dir: Path,
     tokenizer_train_docs: int | None,
     skip_byte: bool,
@@ -423,9 +478,9 @@ def build_tokenizers(
 
         selected_specs.append(spec)
         built = (
-            build_pure_byte_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
+            build_pure_byte_tokenizer(spec=spec, docs_source=docs_source, tokenizers_dir=tokenizers_dir)
             if kind == "byte"
-            else build_sentencepiece_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
+            else build_sentencepiece_tokenizer(spec=spec, docs_source=docs_source, tokenizers_dir=tokenizers_dir)
         )
         name = str(built["name"])
         dataset_suffix = built.get("dataset_suffix")
@@ -509,6 +564,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="VOCAB=MODEL",
         help="Reuse an existing SentencePiece model for the given vocab size instead of retraining it.",
     )
+    parser.add_argument(
+        "--stream-docs",
+        action="store_true",
+        help="Stream docs_selected.jsonl directly from Hugging Face instead of caching the full file locally.",
+    )
     return parser
 
 
@@ -526,7 +586,9 @@ def main() -> None:
 
     docs_jsonl = output_root / DOCS_FILENAME
     sidecar = output_root / SIDECAR_FILENAME
-    if not copy_from_hf_cache(
+    if args.stream_docs:
+        docs_jsonl.unlink(missing_ok=True)
+    elif not copy_from_hf_cache(
         repo_id=args.repo_id,
         remote_root=args.remote_root,
         filename=DOCS_FILENAME,
@@ -542,8 +604,13 @@ def main() -> None:
     ):
         sidecar.unlink(missing_ok=True)
 
-    docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl)
-    docs_total = int(docs_sidecar["num_docs"]) if docs_sidecar is not None and docs_sidecar.get("num_docs") is not None else count_docs(docs_jsonl)
+    docs_source = DocsSource(
+        local_path=None if args.stream_docs else docs_jsonl,
+        repo_id=args.repo_id,
+        remote_root=args.remote_root,
+    )
+    docs_sidecar = maybe_load_json_object(sidecar)
+    docs_total = int(docs_sidecar["num_docs"]) if docs_sidecar is not None and docs_sidecar.get("num_docs") is not None else count_docs(docs_source)
     if args.num_val_docs is not None:
         num_val_docs = int(args.num_val_docs)
     elif docs_sidecar is not None and docs_sidecar.get("docs_val") is not None:
@@ -557,7 +624,7 @@ def main() -> None:
     reuse_sp_models = parse_reuse_sp_models(args.reuse_sp_model)
     tokenizers, selected_specs = build_tokenizers(
         specs=specs,
-        docs_jsonl=docs_jsonl,
+        docs_source=docs_source,
         tokenizers_dir=tokenizers_dir,
         tokenizer_train_docs=args.tokenizer_train_docs,
         skip_byte=args.skip_byte,
@@ -570,7 +637,9 @@ def main() -> None:
         "remote_root": args.remote_root,
         "num_docs": docs_total,
         "docs_sha256": None if docs_sidecar is None else docs_sidecar.get("docs_sha256"),
-        "source_manifest": str(docs_sidecar_path(docs_jsonl)) if docs_sidecar is not None else None,
+        "source_manifest": str(sidecar) if docs_sidecar is not None else None,
+        "streamed_from_hf": bool(args.stream_docs),
+        "docs_source_ref": docs_source.remote_ref if args.stream_docs else str(docs_jsonl),
     }
     if docs_sidecar is not None:
         docs_meta["source_sidecar"] = docs_sidecar
@@ -582,7 +651,7 @@ def main() -> None:
         "shuffle_seed": None if docs_sidecar is None else docs_sidecar.get("shuffle_seed"),
         "shard_size": int(args.chunk_tokens),
         "append_eos": APPEND_EOS,
-        "docs_jsonl": str(docs_jsonl),
+        "docs_jsonl": None if args.stream_docs else str(docs_jsonl),
         "docs_meta": docs_meta,
         "tokenizer_specs": selected_specs,
         "tokenizers": [],
@@ -593,7 +662,7 @@ def main() -> None:
         output_dir = datasets_dir / tok["dataset_name"]
         print(f"Exporting dataset: {tok['dataset_name']}", flush=True)
         stats = export_shards(
-            docs_jsonl,
+            docs_source,
             tok,
             output_dir,
             num_val_docs=num_val_docs,

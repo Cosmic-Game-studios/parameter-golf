@@ -44,7 +44,6 @@ class Hyperparameters:
     # Data / tokenizer.
     data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
-    init_model_path: str = os.environ.get("INIT_MODEL_PATH", "")
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed: int = int(os.environ.get("SEED", 1337))
 
@@ -64,9 +63,6 @@ class Hyperparameters:
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    lr_schedule: str = os.environ.get("LR_SCHEDULE", "warmdown").strip().lower()
-    lr_warmup_iters: int = int(os.environ.get("LR_WARMUP_ITERS", 0))
-    min_lr_scale: float = float(os.environ.get("MIN_LR_SCALE", 0.0))
 
     # Model (defaults match the current baseline setup).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -111,77 +107,15 @@ class Hyperparameters:
         return self.train_batch_tokens // self.grad_accum_steps
 
     def lr_mul(self, step: int, elapsed_ms: float) -> float:
-        def apply_warmup(scale: float) -> float:
-            if self.lr_warmup_iters <= 0:
-                return scale
-            return scale * min((step + 1) / self.lr_warmup_iters, 1.0)
-
-        if self.lr_schedule == "constant":
-            return apply_warmup(1.0)
-
-        if self.lr_schedule == "cosine":
-            if self.max_wallclock_seconds > 0:
-                progress = min(elapsed_ms / max(1000.0 * self.max_wallclock_seconds, 1e-9), 1.0)
-            else:
-                progress = min(step / max(self.iterations - 1, 1), 1.0)
-            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
-            return apply_warmup(self.min_lr_scale + (1.0 - self.min_lr_scale) * cosine)
-
-        if self.lr_schedule != "warmdown":
-            raise ValueError(f"unsupported LR_SCHEDULE={self.lr_schedule!r}")
-
         if self.warmdown_iters <= 0:
-            return apply_warmup(1.0)
+            return 1.0
         if self.max_wallclock_seconds <= 0:
             warmdown_start = max(self.iterations - self.warmdown_iters, 0)
-            scale = (
-                max((self.iterations - step) / max(self.warmdown_iters, 1), 0.0)
-                if warmdown_start <= step < self.iterations
-                else 1.0
-            )
-            return apply_warmup(scale)
+            return max((self.iterations - step) / max(self.warmdown_iters, 1), 0.0) if warmdown_start <= step < self.iterations else 1.0
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
-        scale = remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
-        return apply_warmup(scale)
-
-
-TRAIN_COMPRESSION_AWARE_WEIGHT = float(os.environ.get("TRAIN_COMPRESSION_AWARE_WEIGHT", 0.0))
-TRAIN_COMPRESSION_AWARE_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_COMPRESSION_AWARE_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_COMPRESSION_AWARE_BLOCK_SIZE = int(
-    os.environ.get("TRAIN_COMPRESSION_AWARE_BLOCK_SIZE", os.environ.get("INT4_BLOCK_SIZE", 64))
-)
-TRAIN_GRAD_ONLY_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_GRAD_ONLY_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_GRAD_SKIP_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_GRAD_SKIP_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_QAT_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_QAT_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_QAT_BLOCK_SIZE = int(os.environ.get("TRAIN_QAT_BLOCK_SIZE", os.environ.get("INT4_BLOCK_SIZE", 64)))
-LFQAT_KL_WEIGHT = float(os.environ.get("LFQAT_KL_WEIGHT", 0.0))
-LFQAT_FISHER_WEIGHT = float(os.environ.get("LFQAT_FISHER_WEIGHT", 0.0))
-LFQAT_TEMPERATURE = float(os.environ.get("LFQAT_TEMPERATURE", 2.0))
-LFQAT_FISHER_DECAY = float(os.environ.get("LFQAT_FISHER_DECAY", 0.95))
-LFQAT_START_STEP = int(os.environ.get("LFQAT_START_STEP", 0))
-LFQAT_FULL_STEP = int(os.environ.get("LFQAT_FULL_STEP", 0))
-LFQAT_MIN_PROB = float(os.environ.get("LFQAT_MIN_PROB", 1.0))
-LFQAT_MAX_PROB = float(os.environ.get("LFQAT_MAX_PROB", 1.0))
-LFQAT_RUNTIME = {"prob": 1.0}
-LFQAT_FISHER_EMA: dict[str, float] = {}
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -234,137 +168,12 @@ def accumulate_flat_grads(
     return accum
 
 
-def grad_name_is_trainable(name: str) -> bool:
-    if TRAIN_GRAD_ONLY_NAME_PATTERNS and not any(pattern in name for pattern in TRAIN_GRAD_ONLY_NAME_PATTERNS):
-        return False
-    if TRAIN_GRAD_SKIP_NAME_PATTERNS and any(pattern in name for pattern in TRAIN_GRAD_SKIP_NAME_PATTERNS):
-        return False
-    return True
-
-
-def filter_grad_tree(grads_tree: dict) -> dict:
-    if not TRAIN_GRAD_ONLY_NAME_PATTERNS and not TRAIN_GRAD_SKIP_NAME_PATTERNS:
-        return grads_tree
-    return tree_unflatten(
-        [
-            (name, grad if grad_name_is_trainable(name) else mx.zeros_like(grad))
-            for name, grad in tree_flatten(grads_tree)
-        ]
-    )
-
-
 # ==============================================================================
 # MATH HELPERS
 # ==============================================================================
 
 def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
     return (x * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + eps)).astype(x.dtype)
-
-
-def should_train_compression_align(name: str, arr: mx.array) -> bool:
-    return (
-        TRAIN_COMPRESSION_AWARE_WEIGHT > 0.0
-        and arr.ndim == 2
-        and any(pattern in name for pattern in TRAIN_COMPRESSION_AWARE_NAME_PATTERNS)
-    )
-
-
-def compression_aware_int4_target(arr: mx.array, block_size: int) -> mx.array:
-    if arr.ndim != 2:
-        raise ValueError(f"compression-aware int4 target expects 2D tensors, got shape={arr.shape}")
-    if block_size <= 0:
-        raise ValueError(f"TRAIN_COMPRESSION_AWARE_BLOCK_SIZE must be positive, got {block_size}")
-    rows, cols = arr.shape
-    blocks_per_row = (cols + block_size - 1) // block_size
-    padded_cols = blocks_per_row * block_size
-    arr32 = arr.astype(mx.float32)
-    if padded_cols != cols:
-        padded = mx.concatenate(
-            (arr32, mx.zeros((rows, padded_cols - cols), dtype=mx.float32)),
-            axis=1,
-        )
-    else:
-        padded = arr32
-    reshaped = padded.reshape(rows, blocks_per_row, block_size)
-    clip_abs = mx.maximum(mx.max(mx.abs(reshaped), axis=2), mx.array(1.0 / 7.0, dtype=mx.float32))
-    scale = clip_abs / 7.0
-    q = mx.clip(mx.round(reshaped / scale[..., None]), -7, 7)
-    target = (q * scale[..., None]).reshape(rows, padded_cols)[:, :cols]
-    return mx.stop_gradient(target.astype(arr.dtype))
-
-
-def should_train_qat(name: str) -> bool:
-    return bool(TRAIN_QAT_NAME_PATTERNS) and any(pattern in name for pattern in TRAIN_QAT_NAME_PATTERNS)
-def fake_quantize_int4_ste(arr: mx.array, name: str) -> mx.array:
-    if not should_train_qat(name):
-        return arr
-    target = compression_aware_int4_target(arr, TRAIN_QAT_BLOCK_SIZE)
-    prob = float(LFQAT_RUNTIME["prob"])
-    if prob >= 1.0:
-        return arr + mx.stop_gradient(target - arr)
-    if prob <= 0.0:
-        return arr
-    gate = (mx.random.uniform() < prob).astype(arr.dtype)
-    mixed = gate * target + (1.0 - gate) * arr
-    return arr + mx.stop_gradient(mixed - arr)
-def compression_aware_alignment_loss(flat_params: dict[str, mx.array]) -> mx.array:
-    if TRAIN_COMPRESSION_AWARE_WEIGHT <= 0.0 or not TRAIN_COMPRESSION_AWARE_NAME_PATTERNS:
-        return mx.array(0.0, dtype=mx.float32)
-    err = mx.array(0.0, dtype=mx.float32)
-    signal = mx.array(0.0, dtype=mx.float32)
-    matched = 0
-    for name, arr in flat_params.items():
-        if not should_train_compression_align(name, arr):
-            continue
-        target = compression_aware_int4_target(arr, TRAIN_COMPRESSION_AWARE_BLOCK_SIZE)
-        arr32 = arr.astype(mx.float32)
-        target32 = target.astype(mx.float32)
-        diff = arr32 - target32
-        err = err + mx.sum(diff * diff)
-        signal = signal + mx.sum(target32 * target32)
-        matched += 1
-    if matched == 0:
-        return mx.array(0.0, dtype=mx.float32)
-    return mx.array(TRAIN_COMPRESSION_AWARE_WEIGHT, dtype=mx.float32) * err / mx.maximum(
-        signal,
-        mx.array(1e-6, dtype=mx.float32),
-    )
-def lfqat_enabled() -> bool:
-    return bool(TRAIN_QAT_NAME_PATTERNS) and (LFQAT_KL_WEIGHT > 0.0 or LFQAT_FISHER_WEIGHT > 0.0 or LFQAT_MIN_PROB != 1.0 or LFQAT_MAX_PROB != 1.0)
-def lfqat_prob_for_step(step: int) -> float:
-    if not lfqat_enabled():
-        return 1.0
-    if LFQAT_FULL_STEP <= LFQAT_START_STEP:
-        return LFQAT_MAX_PROB if step >= LFQAT_START_STEP else LFQAT_MIN_PROB
-    t = min(max((step - LFQAT_START_STEP) / max(LFQAT_FULL_STEP - LFQAT_START_STEP, 1), 0.0), 1.0)
-    return LFQAT_MIN_PROB + (LFQAT_MAX_PROB - LFQAT_MIN_PROB) * t
-def lfqat_fisher_alignment_loss(flat_params: dict[str, mx.array]) -> mx.array:
-    if LFQAT_FISHER_WEIGHT <= 0.0 or not LFQAT_FISHER_EMA:
-        return mx.array(0.0, dtype=mx.float32)
-    err = mx.array(0.0, dtype=mx.float32)
-    signal = mx.array(0.0, dtype=mx.float32)
-    matched = 0
-    for name, arr in flat_params.items():
-        weight = LFQAT_FISHER_EMA.get(name)
-        if weight is None or not should_train_qat(name):
-            continue
-        target = compression_aware_int4_target(arr, TRAIN_QAT_BLOCK_SIZE)
-        diff = arr.astype(mx.float32) - target.astype(mx.float32)
-        err = err + mx.array(weight, dtype=mx.float32) * mx.sum(diff * diff)
-        signal = signal + mx.array(weight, dtype=mx.float32) * mx.sum(target.astype(mx.float32) * target.astype(mx.float32))
-        matched += 1
-    if matched == 0:
-        return mx.array(0.0, dtype=mx.float32)
-    return mx.array(LFQAT_FISHER_WEIGHT, dtype=mx.float32) * err / mx.maximum(signal, mx.array(1e-6, dtype=mx.float32))
-def update_lfqat_fisher(grads_tree: dict) -> None:
-    if LFQAT_FISHER_WEIGHT <= 0.0:
-        return
-    for name, grad in tree_flatten(grads_tree):
-        if not should_train_qat(name):
-            continue
-        g2 = float(np.mean(np.square(_np_float32(grad)), dtype=np.float64))
-        prev = LFQAT_FISHER_EMA.get(name, g2)
-        LFQAT_FISHER_EMA[name] = LFQAT_FISHER_DECAY * prev + (1.0 - LFQAT_FISHER_DECAY) * g2
 
 
 def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.array:
@@ -475,11 +284,9 @@ class CastedLinear(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
-        self.weight_name = ""
 
-    def __call__(self, x: mx.array, qat: bool = False) -> mx.array:
-        w = fake_quantize_int4_ste(self.weight, self.weight_name) if qat else self.weight
-        return x @ w.astype(x.dtype).T
+    def __call__(self, x: mx.array) -> mx.array:
+        return x @ self.weight.astype(x.dtype).T
 
 
 class RMSNormNoWeight(nn.Module):
@@ -520,18 +327,18 @@ class CausalSelfAttention(nn.Module):
         self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
         self.scale = self.head_dim ** -0.5
 
-    def __call__(self, x: mx.array, qat: bool = False) -> mx.array:
+    def __call__(self, x: mx.array) -> mx.array:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x, qat=qat).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.c_k(x, qat=qat).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.c_v(x, qat=qat).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
 
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
         y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
-        return self.proj(y, qat=qat)
+        return self.proj(y)
 
 
 class MLP(nn.Module):
@@ -542,9 +349,9 @@ class MLP(nn.Module):
         self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
-    def __call__(self, x: mx.array, qat: bool = False) -> mx.array:
-        x = nn.relu(self.fc(x, qat=qat))
-        return self.proj(x * x, qat=qat)
+    def __call__(self, x: mx.array) -> mx.array:
+        x = nn.relu(self.fc(x))
+        return self.proj(x * x)
 
 
 class Block(nn.Module):
@@ -570,13 +377,12 @@ class Block(nn.Module):
         resid_mix: mx.array,
         attn_scale: mx.array,
         mlp_scale: mx.array,
-        qat: bool = False,
     ) -> mx.array:
         mix = resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x), qat=qat)
+        attn_out = self.attn(self.attn_norm(x))
         x = x + attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), qat=qat)
+        x = x + mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -647,19 +453,12 @@ class GPT(nn.Module):
         self.tok_emb.weight = (
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
-        for i, b in enumerate(self.blocks):
-            b.attn.c_q.weight_name = f"blocks.{i}.attn.c_q.weight"
-            b.attn.c_k.weight_name = f"blocks.{i}.attn.c_k.weight"
-            b.attn.c_v.weight_name = f"blocks.{i}.attn.c_v.weight"
-            b.attn.proj.weight_name = f"blocks.{i}.attn.proj.weight"
-            b.mlp.fc.weight_name = f"blocks.{i}.mlp.fc.weight"
-            b.mlp.proj.weight_name = f"blocks.{i}.mlp.proj.weight"
 
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
-    def run_step(self, step_idx: int, x: mx.array, x0: mx.array, qat: bool = False) -> mx.array:
+    def run_step(self, step_idx: int, x: mx.array, x0: mx.array) -> mx.array:
         block = self.blocks[step_idx % self.num_unique_layers]
         return block(
             x,
@@ -667,16 +466,15 @@ class GPT(nn.Module):
             self.resid_mixes[step_idx],
             self.attn_scales[step_idx],
             self.mlp_scales[step_idx],
-            qat=qat,
         )
 
-    def __call__(self, input_ids: mx.array, qat: bool = False) -> mx.array:
+    def __call__(self, input_ids: mx.array) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.run_step(i, x, x0, qat=qat)
+            x = self.run_step(i, x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # Odd layer counts have one more decoder block than encoder block. The baseline only
@@ -684,13 +482,13 @@ class GPT(nn.Module):
             # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.run_step(self.num_encoder_layers + i, x, x0, qat=qat)
+            x = self.run_step(self.num_encoder_layers + i, x, x0)
         return self.final_norm(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array, qat: bool = False) -> mx.array:
+    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids, qat=qat).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
@@ -705,19 +503,6 @@ class GPT(nn.Module):
             logits = self.softcap(logits_proj)
             loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
         return loss_sum / float(n)
-
-    def training_loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
-        loss = self.loss(input_ids, target_ids, qat=True)
-        if LFQAT_KL_WEIGHT > 0.0 and self.logit_chunk_tokens <= 0:
-            tau = mx.array(max(LFQAT_TEMPERATURE, 1e-3), dtype=mx.float32)
-            student = self.softcap(self(input_ids, qat=True).reshape(-1, self.tok_emb.weight.shape[1]) @ self.tok_emb.weight.astype(COMPUTE_DTYPE).T).astype(mx.float32)
-            teacher = mx.stop_gradient(self.softcap(self(input_ids, qat=False).reshape(-1, self.tok_emb.weight.shape[1]) @ self.tok_emb.weight.astype(COMPUTE_DTYPE).T).astype(mx.float32))
-            teacher_probs = mx.softmax(teacher / tau, axis=-1)
-            student_log_probs = nn.log_softmax(student / tau, axis=-1)
-            teacher_log_probs = mx.log(mx.maximum(teacher_probs, mx.array(1e-6, dtype=mx.float32)))
-            loss = loss + mx.array(LFQAT_KL_WEIGHT, dtype=mx.float32) * (tau * tau) * mx.mean(mx.sum(teacher_probs * (teacher_log_probs - student_log_probs), axis=-1))
-        flat_params = dict(tree_flatten(self.parameters()))
-        return loss + compression_aware_alignment_loss(flat_params) + lfqat_fisher_alignment_loss(flat_params)
 
 # ==============================================================================
 # OPTIMIZERS (MUON + ADAM SPLIT)
@@ -825,15 +610,6 @@ INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
 INT8_PER_ROW_SCALE_DTYPE = np.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-QUANT_FORMAT = os.environ.get("QUANT_FORMAT", "int8_clean_per_row_v1").strip().lower()
-INT4_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT4_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-INT4_BLOCK_SIZE = int(os.environ.get("INT4_BLOCK_SIZE", 64))
-INT4_CLIP_PERCENTILE = float(os.environ.get("INT4_CLIP_PERCENTILE", 99.9))
-INT4_CLIP_Q = INT4_CLIP_PERCENTILE / 100.0
 
 
 def _np_float32(arr: mx.array) -> np.ndarray:
@@ -857,32 +633,7 @@ def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str
     return np.ascontiguousarray(np.array(arr, copy=True))
 
 
-def should_use_int4_array(name: str, arr: mx.array) -> bool:
-    return (
-        QUANT_FORMAT == "mixed_int4_int8_packed_v2"
-        and arr.ndim == 2
-        and any(pattern in name for pattern in INT4_NAME_PATTERNS)
-    )
-
-
-def pack_int4_values(values: np.ndarray) -> np.ndarray:
-    flat = np.ascontiguousarray(np.asarray(values, dtype=np.int8).reshape(-1))
-    if flat.size % 2:
-        flat = np.concatenate((flat, np.zeros((1,), dtype=np.int8)))
-    unsigned = np.asarray(flat + 8, dtype=np.uint8)
-    packed = unsigned[0::2] | (unsigned[1::2] << 4)
-    return np.ascontiguousarray(packed)
-
-
-def unpack_int4_values(packed: np.ndarray, count: int) -> np.ndarray:
-    packed_u8 = np.asarray(packed, dtype=np.uint8).reshape(-1)
-    values = np.empty((packed_u8.size * 2,), dtype=np.int8)
-    values[0::2] = (packed_u8 & 0x0F).astype(np.int8) - 8
-    values[1::2] = (packed_u8 >> 4).astype(np.int8) - 8
-    return values[:count]
-
-
-def quantize_float_array_int8(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
     f32 = _np_float32(arr)
     if f32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -898,43 +649,6 @@ def quantize_float_array_int8(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
     scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
     q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
     return np.ascontiguousarray(q), scale
-
-
-def quantize_float_array_int4_blockwise(arr: mx.array) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
-    f32 = _np_float32(arr)
-    if f32.ndim != 2:
-        raise ValueError(f"int4 blockwise quantization only supports 2D tensors, got shape={f32.shape}")
-    if INT4_BLOCK_SIZE <= 0:
-        raise ValueError(f"INT4_BLOCK_SIZE must be positive, got {INT4_BLOCK_SIZE}")
-
-    rows, cols = f32.shape
-    blocks_per_row = (cols + INT4_BLOCK_SIZE - 1) // INT4_BLOCK_SIZE
-    padded_cols = blocks_per_row * INT4_BLOCK_SIZE
-    if padded_cols != cols:
-        padded = np.zeros((rows, padded_cols), dtype=np.float32)
-        padded[:, :cols] = f32
-    else:
-        padded = f32
-    reshaped = padded.reshape(rows, blocks_per_row, INT4_BLOCK_SIZE)
-    clip_abs = (
-        np.quantile(np.abs(reshaped), INT4_CLIP_Q, axis=2)
-        if reshaped.size
-        else np.empty((rows, blocks_per_row), dtype=np.float32)
-    )
-    scale = np.maximum(clip_abs / 7.0, 1.0 / 7.0).astype(np.float32, copy=False)
-    clipped = np.clip(reshaped, -clip_abs[..., None], clip_abs[..., None])
-    q = np.clip(np.round(clipped / scale[..., None]), -7, 7).astype(np.int8, copy=False)
-    meta = {
-        "scheme": "per_row_block_int4",
-        "axis": 0,
-        "shape": [rows, cols],
-        "block_size": INT4_BLOCK_SIZE,
-    }
-    return (
-        pack_int4_values(q),
-        np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False)),
-        meta,
-    )
 
 
 def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
@@ -967,19 +681,15 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             continue
 
         stats["num_float_tensors"] += 1
-        if should_use_int4_array(name, arr):
-            q, s, meta = quantize_float_array_int4_blockwise(arr)
-            qmeta[name] = meta
-        else:
-            q, s = quantize_float_array_int8(arr)
-            if s.ndim > 0:
-                qmeta[name] = {"scheme": "per_row", "axis": 0}
+        q, s = quantize_float_array(arr)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(arr.dtype).split(".")[-1]
         stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
     obj: dict[str, object] = {
-        "__quant_format__": QUANT_FORMAT,
+        "__quant_format__": "int8_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -997,24 +707,14 @@ def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.arr
     qmeta = quant_obj.get("qmeta", {})
     passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
     for name, q in quant_obj["quantized"].items():
-        meta = qmeta.get(name, {})
+        q_np = np.asarray(q, dtype=np.int8)
         dtype_name = quant_obj["dtypes"][name]
         scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
-        if meta.get("scheme") == "per_row_block_int4":
-            rows, cols = (int(x) for x in meta["shape"])
-            block_size = int(meta["block_size"])
-            blocks_per_row = (cols + block_size - 1) // block_size
-            q_int = unpack_int4_values(np.asarray(q, dtype=np.uint8), rows * blocks_per_row * block_size)
-            q_int = q_int.reshape(rows, blocks_per_row, block_size)
-            out_arr = (q_int.astype(np.float32) * scale.reshape(rows, blocks_per_row, 1)).reshape(rows, blocks_per_row * block_size)
-            out_arr = out_arr[:, :cols]
+        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
+            # Broadcast the saved row scale back across trailing dimensions.
+            out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
         else:
-            q_np = np.asarray(q, dtype=np.int8)
-            if meta.get("scheme") == "per_row" or scale.ndim > 0:
-                # Broadcast the saved row scale back across trailing dimensions.
-                out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
-            else:
-                out_arr = q_np.astype(np.float32) * float(scale)
+            out_arr = q_np.astype(np.float32) * float(scale)
         out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
     for name, arr in quant_obj["passthrough"].items():
         # Restore small tensors, undoing the temporary fp16 storage cast if needed.
@@ -1264,29 +964,20 @@ def main() -> None:
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
     )
-    flat_state_keys = [name for name, _ in tree_flatten(model.state)]
-    if args.init_model_path:
-        loaded = mx.load(args.init_model_path)
-        expected = set(flat_state_keys)
-        found = set(loaded.keys())
-        missing = sorted(expected - found)
-        extra = sorted(found - expected)
-        if missing or extra:
-            raise ValueError(
-                f"INIT_MODEL_PATH mismatch missing={missing[:5]} extra={extra[:5]} "
-                f"(missing={len(missing)} extra={len(extra)})"
-            )
-        model.update(tree_unflatten([(name, loaded[name]) for name in flat_state_keys]))
     opt = SplitOptimizers(model, args)
 
     # ==============================================================================
     # COMPILED TRAIN / EVAL FUNCTIONS (MLX)
     # ==============================================================================
+    # The crucial MLX detail is capture scope: this model contains non-trainable arrays too (for example
+    # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
+    # Compiling the model-bound functions and capturing the full model state fixes that while still
+    # returning gradients only for trainable parameters via nn.value_and_grad(...).
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
-    compiled_loss_and_grad = (
-        nn.value_and_grad(model, lambda x, y: model.training_loss(x, y))
-        if lfqat_enabled()
-        else mx.compile(nn.value_and_grad(model, lambda x, y: model.training_loss(x, y)), inputs=model.state, outputs=model.state)
+    compiled_loss_and_grad = mx.compile(
+        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        inputs=model.state,
+        outputs=model.state,
     )
 
     # Print config once so logs are self-describing.
@@ -1306,8 +997,6 @@ def main() -> None:
     else:
         log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
     log(f"tokenizer_path:{args.tokenizer_path}")
-    if args.init_model_path:
-        log(f"init_model_path:{args.init_model_path}")
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
         f"unique_layers:{args.num_unique_layers} "
@@ -1318,32 +1007,9 @@ def main() -> None:
         f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
         f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
         f"val_batch_size:{args.val_batch_size} "
-        f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f} "
-        f"lr_schedule:{args.lr_schedule} lr_warmup_iters:{args.lr_warmup_iters} min_lr_scale:{args.min_lr_scale:.3f}"
+        f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
-    log(
-        f"quant_format:{QUANT_FORMAT} int4_patterns:{','.join(INT4_NAME_PATTERNS) if INT4_NAME_PATTERNS else '-'} "
-        f"int4_block_size:{INT4_BLOCK_SIZE}"
-    )
-    log(
-        f"train_compression_aware_weight:{TRAIN_COMPRESSION_AWARE_WEIGHT} "
-        f"train_compression_aware_patterns:{','.join(TRAIN_COMPRESSION_AWARE_NAME_PATTERNS) if TRAIN_COMPRESSION_AWARE_NAME_PATTERNS else '-'} "
-        f"train_compression_aware_block_size:{TRAIN_COMPRESSION_AWARE_BLOCK_SIZE}"
-    )
-    log(
-        f"train_grad_only_patterns:{','.join(TRAIN_GRAD_ONLY_NAME_PATTERNS) if TRAIN_GRAD_ONLY_NAME_PATTERNS else '-'} "
-        f"train_grad_skip_patterns:{','.join(TRAIN_GRAD_SKIP_NAME_PATTERNS) if TRAIN_GRAD_SKIP_NAME_PATTERNS else '-'}"
-    )
-    log(
-        f"train_qat_patterns:{','.join(TRAIN_QAT_NAME_PATTERNS) if TRAIN_QAT_NAME_PATTERNS else '-'} "
-        f"train_qat_block_size:{TRAIN_QAT_BLOCK_SIZE}"
-    )
-    log(
-        f"lfqat_enabled:{lfqat_enabled()} lfqat_kl_weight:{LFQAT_KL_WEIGHT} "
-        f"lfqat_fisher_weight:{LFQAT_FISHER_WEIGHT} lfqat_temperature:{LFQAT_TEMPERATURE} "
-        f"lfqat_prob:{LFQAT_MIN_PROB}->{LFQAT_MAX_PROB} lfqat_steps:{LFQAT_START_STEP}->{LFQAT_FULL_STEP}"
-    )
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
         f"embed_lr:{args.tied_embed_lr} "
@@ -1351,7 +1017,7 @@ def main() -> None:
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
-    log(f"compute_dtype:{COMPUTE_DTYPE} compile:{not lfqat_enabled()}")
+    log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
         f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
@@ -1362,6 +1028,10 @@ def main() -> None:
     # TRAINING LOOP
     # ==============================================================================
     if args.warmup_steps > 0:
+        # Warmup should only prime MLX compile/allocation paths. Updating parameters here forces us
+        # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
+        # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
+        # the loader so measured training still starts from the true init and token window.
         for warmup_step in range(args.warmup_steps):
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
@@ -1421,7 +1091,6 @@ def main() -> None:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
-        LFQAT_RUNTIME["prob"] = lfqat_prob_for_step(step)
         lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
         step_t0 = time.perf_counter()
 
@@ -1434,8 +1103,7 @@ def main() -> None:
             train_loss = train_loss + loss.astype(mx.float32) * grad_scale
 
         grads = tree_unflatten(list(accum.items()))
-        grads = filter_grad_tree(clip_grad_tree(grads, args.grad_clip_norm))
-        update_lfqat_fisher(grads)
+        grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
@@ -1447,8 +1115,7 @@ def main() -> None:
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
             log(
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
-                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f} "
-                f"lfqat_prob:{LFQAT_RUNTIME['prob']:.3f}"
+                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
             )
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
@@ -1498,3 +1165,54 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.13.2 (v3.13.2:4f8bb3947cf, Feb  4 2025, 11:51:10) [Clang 15.0.0 (clang-1500.3.9.4)]
+Running MLX 0.31.1
+====================================================================================================
+WARNING: val_loader:subset tokens:262144/62021632 enabled via VAL_MAX_TOKENS=262144
+run_id:recur_rank_local_b_fp16tok_100
+mlx_version:0.31.1
+train_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:./data/tokenizers/fineweb_1024_bpe.model
+model_params:14229520 vocab_size:1024 layers:16 unique_layers:2 dim:1024 heads:8 kv_heads:1 seq_len:1024 tie_embeddings:True
+iterations:100 train_batch_tokens:8192 grad_accum_steps:8 microbatch_tokens:1024 microbatch_batch_size:1 val_batch_size:8192 warmup_steps:5 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:8192
+optimizer:muon+adam muon_matrix_params:12 scalar_params:6 embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:1/100 train_loss:7.0810 train_time:3607ms step_avg:3607.20ms tok_s:2271
+step:2/100 train_loss:6.8454 train_time:43609ms step_avg:21804.43ms tok_s:205
+step:3/100 train_loss:6.6109 train_time:84802ms step_avg:28267.33ms tok_s:199
+step:4/100 train_loss:6.4775 train_time:87624ms step_avg:21905.93ms tok_s:2905
+step:5/100 train_loss:6.3042 train_time:90463ms step_avg:18092.70ms tok_s:2886
+step:6/100 train_loss:6.0912 train_time:93385ms step_avg:15564.24ms tok_s:2804
+step:7/100 train_loss:5.9016 train_time:96238ms step_avg:13748.34ms tok_s:2872
+step:8/100 train_loss:5.9103 train_time:99060ms step_avg:12382.44ms tok_s:2905
+step:9/100 train_loss:5.8284 train_time:101933ms step_avg:11325.84ms tok_s:2852
+step:10/100 train_loss:5.7872 train_time:104712ms step_avg:10471.22ms tok_s:2948
+step:20/100 train_loss:5.6596 train_time:132631ms step_avg:6631.54ms tok_s:2958
+step:40/100 train_loss:5.3795 train_time:191143ms step_avg:4778.57ms tok_s:2860
+step:60/100 train_loss:4.9753 train_time:249314ms step_avg:4155.23ms tok_s:2738
+step:80/100 train_loss:4.7289 train_time:308543ms step_avg:3856.78ms tok_s:2824
+step:100/100 train_loss:4.6772 train_time:365110ms step_avg:3651.10ms tok_s:2960
+step:100/100 val_loss:4.6617 val_bpb:2.7606 train_time:390410ms step_avg:3904.10ms
+saved_model:logs/recur_rank_local_b_fp16tok_100_mlx_model.npz bytes:54825344
+serialized_model_int8_zlib:4945814 bytes (payload:15520832 raw_pickle:15522951 payload_ratio:3.53x)
+final_int8_zlib_roundtrip val_loss:5.4306 val_bpb:3.2159 eval_time:21263ms
+final_int8_zlib_roundtrip_exact val_loss:5.43058348 val_bpb:3.21585663
+----------------------------------------------------------------------------------------------------
+offline_export_verification
+source_checkpoint=logs/recur_rank_local_b_fp16tok_100_mlx_model.npz
+patterns=('tok_emb.weight', 'mlp.proj.weight', 'attn.c_q.weight')
+serialized_model_int8_zlib:15538873 bytes (payload:21804096 raw_pickle:21806048) quant_time:744ms
+final_int8_zlib_roundtrip val_loss:4.7708 val_bpb:2.8251 eval_time:21438ms
+final_int8_zlib_roundtrip_exact val_loss:4.77079535 val_bpb:2.82514649

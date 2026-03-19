@@ -1,0 +1,14 @@
+{
+  "tokenizers": [
+    {
+      "name": "sp_unigram_4096_docs",
+      "dataset_suffix": "spu4096_docs",
+      "vocab_size": 4096,
+      "model_prefix": "fineweb_4096_unigram",
+      "tokenizer_train_docs": 40000,
+      "trainer_overrides": {
+        "model_type": "unigram"
+      }
+    }
+  ]
+}

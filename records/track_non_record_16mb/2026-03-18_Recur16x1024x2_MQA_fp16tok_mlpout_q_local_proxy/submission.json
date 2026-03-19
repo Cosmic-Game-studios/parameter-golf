@@ -1,0 +1,14 @@
+{
+  "author": "ronaldschmidt",
+  "github_id": "ronaldschmidt",
+  "name": "Recur 16x1024 x2-share KV1 fp16-tok+mlpout+q (local proxy)",
+  "blurb": "Shared-block recurrent transformer with MQA-style KV sharing and selective fp16 export for the tied embedding, MLP output projection, and Q projection. This is the strongest legal local result produced in the current search; metric is from a 262,144-token prefix of the official validation split, not a full record-eligible run.",
+  "date": "2026-03-18T19:45:00Z",
+  "val_loss": 4.77079535,
+  "val_bpb": 2.82514649,
+  "bytes_total": 15588558,
+  "bytes_code": 49685,
+  "bytes_model_compressed": 15538873,
+  "validation_scope": "exploratory_local_prefix_262144_tokens",
+  "official_record_eligible": false
+}

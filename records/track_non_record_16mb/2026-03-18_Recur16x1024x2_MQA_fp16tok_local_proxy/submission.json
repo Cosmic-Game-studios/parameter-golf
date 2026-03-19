@@ -1,0 +1,14 @@
+{
+  "author": "ronaldschmidt",
+  "github_id": "ronaldschmidt",
+  "name": "Recur 16x1024 x2-share KV1 fp16-tok (local proxy)",
+  "blurb": "Shared-block recurrent transformer with MQA-style KV sharing and fp16 tied-embedding export. This folder records the strongest local exploratory result from the initial SOTA hunt; metric is from a 262,144-token prefix of the official validation split, not a full record-eligible run.",
+  "date": "2026-03-18T18:20:00Z",
+  "val_loss": 5.54644108,
+  "val_bpb": 3.28446462,
+  "bytes_total": 4935192,
+  "bytes_code": 49685,
+  "bytes_model_compressed": 4885507,
+  "validation_scope": "exploratory_local_prefix_262144_tokens",
+  "official_record_eligible": false
+}

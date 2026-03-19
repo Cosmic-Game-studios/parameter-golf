@@ -52,6 +52,17 @@ python3 data/download_hf_docs_and_tokenize.py \
 
 The sidecar `docs_selected.source_manifest.json` includes `docs_sha256`, so users can verify they are rebuilding from the exact same document list and order as the baseline export.
 
+If local disk is tight, stream the raw docs directly from Hugging Face instead of caching the full `docs_selected.jsonl` locally:
+
+```bash
+python3 data/download_hf_docs_and_tokenize.py \
+  --repo-id your-hf-username/your-dataset-repo \
+  --remote-root your_50B_export_root \
+  --output-root /tmp/my_custom_tokenizer_export \
+  --tokenizer-config ./data/tokenizer_specs.json \
+  --stream-docs
+```
+
 ## Useful Knobs
 
 For CPU-heavy exports, useful knobs are:

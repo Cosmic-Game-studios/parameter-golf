@@ -44,7 +44,6 @@ class Hyperparameters:
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
-    init_model_path = os.environ.get("INIT_MODEL_PATH", "")
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -58,9 +57,6 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    lr_schedule = os.environ.get("LR_SCHEDULE", "warmdown").strip().lower()
-    lr_warmup_iters = int(os.environ.get("LR_WARMUP_ITERS", 0))
-    min_lr_scale = float(os.environ.get("MIN_LR_SCALE", 0.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -92,9 +88,9 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
 # -----------------------------
-# MUON OPTIMIZER 
+# MUON OPTIMIZER
 # -----------------------------
-# 
+#
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
@@ -174,7 +170,7 @@ class Muon(torch.optim.Optimizer):
 
 
 # -----------------------------
-# TOKENIZER-AGNOSTIC EVALUATION SETUP 
+# TOKENIZER-AGNOSTIC EVALUATION SETUP
 # -----------------------------
 #
 # It's common for small models have a large fraction of their parameters be embeddings, since the 2 * d_model * d_vocab vectors can be gigantic.
@@ -316,49 +312,7 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
-QUANT_FORMAT = os.environ.get("QUANT_FORMAT", "int8_clean_per_row_v1").strip().lower()
-INT4_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("INT4_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-INT4_BLOCK_SIZE = int(os.environ.get("INT4_BLOCK_SIZE", 64))
-INT4_CLIP_PERCENTILE = float(os.environ.get("INT4_CLIP_PERCENTILE", 99.9))
-INT4_CLIP_Q = INT4_CLIP_PERCENTILE / 100.0
-TRAIN_COMPRESSION_AWARE_WEIGHT = float(os.environ.get("TRAIN_COMPRESSION_AWARE_WEIGHT", 0.0))
-TRAIN_COMPRESSION_AWARE_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_COMPRESSION_AWARE_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_COMPRESSION_AWARE_BLOCK_SIZE = int(
-    os.environ.get("TRAIN_COMPRESSION_AWARE_BLOCK_SIZE", os.environ.get("INT4_BLOCK_SIZE", 64))
-)
-TRAIN_GRAD_ONLY_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_GRAD_ONLY_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_GRAD_SKIP_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_GRAD_SKIP_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_QAT_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get("TRAIN_QAT_NAME_PATTERNS", "").split(",")
-    if pattern
-)
-TRAIN_QAT_BLOCK_SIZE = int(os.environ.get("TRAIN_QAT_BLOCK_SIZE", os.environ.get("INT4_BLOCK_SIZE", 64)))
-LFQAT_KL_WEIGHT, LFQAT_FISHER_WEIGHT, LFQAT_TEMPERATURE = (
-    float(os.environ.get("LFQAT_KL_WEIGHT", 0.0)),
-    float(os.environ.get("LFQAT_FISHER_WEIGHT", 0.0)),
-    float(os.environ.get("LFQAT_TEMPERATURE", 2.0)),
-)
-LFQAT_FISHER_DECAY, LFQAT_START_STEP, LFQAT_FULL_STEP = float(os.environ.get("LFQAT_FISHER_DECAY", 0.95)), int(os.environ.get("LFQAT_START_STEP", 0)), int(os.environ.get("LFQAT_FULL_STEP", 0))
-LFQAT_MIN_PROB, LFQAT_MAX_PROB = float(os.environ.get("LFQAT_MIN_PROB", 1.0)), float(os.environ.get("LFQAT_MAX_PROB", 1.0))
-LFQAT_RUNTIME = {"prob": 1.0, "disable_qat": False}
-LFQAT_FISHER_EMA: dict[str, float] = {}
+
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
@@ -378,32 +332,7 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def should_use_int4_tensor(name: str, t: Tensor) -> bool:
-    return (
-        QUANT_FORMAT == "mixed_int4_int8_packed_v2"
-        and t.ndim == 2
-        and any(pattern in name for pattern in INT4_NAME_PATTERNS)
-    )
-
-
-def pack_int4_values(values: Tensor) -> Tensor:
-    flat = values.to(dtype=torch.int8).reshape(-1).contiguous()
-    if flat.numel() % 2:
-        flat = torch.cat((flat, torch.zeros((1,), dtype=torch.int8)))
-    unsigned = (flat + 8).to(dtype=torch.uint8)
-    packed = unsigned[0::2] | (unsigned[1::2] << 4)
-    return packed.contiguous()
-
-
-def unpack_int4_values(packed: Tensor, count: int) -> Tensor:
-    packed_u8 = packed.to(dtype=torch.uint8).reshape(-1).contiguous()
-    values = torch.empty((packed_u8.numel() * 2,), dtype=torch.int8)
-    values[0::2] = (packed_u8 & 0x0F).to(dtype=torch.int8) - 8
-    values[1::2] = (packed_u8 >> 4).to(dtype=torch.int8) - 8
-    return values[:count]
-
-
-def quantize_float_tensor_int8(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -423,152 +352,6 @@ def quantize_float_tensor_int8(t: Tensor) -> tuple[Tensor, Tensor]:
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
-
-
-def quantize_float_tensor_int4_blockwise(t: Tensor) -> tuple[Tensor, Tensor, dict[str, object]]:
-    t32 = t.float()
-    if t32.ndim != 2:
-        raise ValueError(f"int4 blockwise quantization only supports 2D tensors, got shape={tuple(t32.shape)}")
-    if INT4_BLOCK_SIZE <= 0:
-        raise ValueError(f"INT4_BLOCK_SIZE must be positive, got {INT4_BLOCK_SIZE}")
-
-    rows, cols = t32.shape
-    blocks_per_row = (cols + INT4_BLOCK_SIZE - 1) // INT4_BLOCK_SIZE
-    padded_cols = blocks_per_row * INT4_BLOCK_SIZE
-    if padded_cols != cols:
-        padded = torch.zeros((rows, padded_cols), dtype=torch.float32)
-        padded[:, :cols] = t32
-    else:
-        padded = t32
-    reshaped = padded.reshape(rows, blocks_per_row, INT4_BLOCK_SIZE)
-    clip_abs = (
-        torch.quantile(reshaped.abs(), INT4_CLIP_Q, dim=2)
-        if reshaped.numel()
-        else torch.empty((rows, blocks_per_row), dtype=torch.float32)
-    )
-    scale = (clip_abs / 7.0).clamp_min(1.0 / 7.0)
-    clipped = torch.maximum(torch.minimum(reshaped, clip_abs[..., None]), -clip_abs[..., None])
-    q = torch.clamp(torch.round(clipped / scale[..., None]), -7, 7).to(torch.int8).contiguous()
-    meta = {
-        "scheme": "per_row_block_int4",
-        "axis": 0,
-        "shape": [int(rows), int(cols)],
-        "block_size": INT4_BLOCK_SIZE,
-    }
-    return (
-        pack_int4_values(q),
-        scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(),
-        meta,
-    )
-
-
-def should_train_compression_align(name: str, t: Tensor) -> bool:
-    return (
-        TRAIN_COMPRESSION_AWARE_WEIGHT > 0.0
-        and t.ndim == 2
-        and any(pattern in name for pattern in TRAIN_COMPRESSION_AWARE_NAME_PATTERNS)
-    )
-
-
-def compression_aware_int4_target(t: Tensor, block_size: int) -> Tensor:
-    if t.ndim != 2:
-        raise ValueError(f"compression-aware int4 target expects 2D tensors, got shape={tuple(t.shape)}")
-    if block_size <= 0:
-        raise ValueError(f"TRAIN_COMPRESSION_AWARE_BLOCK_SIZE must be positive, got {block_size}")
-    t32 = t.detach().float()
-    rows, cols = t32.shape
-    blocks_per_row = (cols + block_size - 1) // block_size
-    padded_cols = blocks_per_row * block_size
-    if padded_cols != cols:
-        padded = torch.zeros((rows, padded_cols), dtype=torch.float32, device=t32.device)
-        padded[:, :cols] = t32
-    else:
-        padded = t32
-    reshaped = padded.reshape(rows, blocks_per_row, block_size)
-    clip_abs = torch.amax(reshaped.abs(), dim=2).clamp_min(1.0 / 7.0)
-    scale = clip_abs / 7.0
-    q = torch.clamp(torch.round(reshaped / scale[..., None]), -7, 7)
-    return (q * scale[..., None]).reshape(rows, padded_cols)[:, :cols].to(dtype=t.dtype, device=t.device).contiguous()
-def should_train_qat(name: str) -> bool:
-    return bool(TRAIN_QAT_NAME_PATTERNS) and any(pattern in name for pattern in TRAIN_QAT_NAME_PATTERNS)
-def fake_quantize_int4_ste(t: Tensor, name: str) -> Tensor:
-    if not should_train_qat(name) or LFQAT_RUNTIME["disable_qat"]:
-        return t
-    target = compression_aware_int4_target(t, TRAIN_QAT_BLOCK_SIZE)
-    prob = float(LFQAT_RUNTIME["prob"])
-    if prob >= 1.0:
-        return t + (target - t).detach()
-    if prob <= 0.0:
-        return t
-    gate = (torch.rand((), device=t.device) < prob).to(dtype=t.dtype)
-    return t + ((target - t) * gate).detach()
-def lfqat_enabled() -> bool:
-    return bool(TRAIN_QAT_NAME_PATTERNS) and (LFQAT_KL_WEIGHT > 0.0 or LFQAT_FISHER_WEIGHT > 0.0 or LFQAT_MIN_PROB != 1.0 or LFQAT_MAX_PROB != 1.0)
-
-def lfqat_prob_for_step(step: int) -> float:
-    if LFQAT_FULL_STEP <= LFQAT_START_STEP:
-        return LFQAT_MAX_PROB if step >= LFQAT_START_STEP else LFQAT_MIN_PROB
-    t = min(max((step - LFQAT_START_STEP) / max(LFQAT_FULL_STEP - LFQAT_START_STEP, 1), 0.0), 1.0)
-    return LFQAT_MIN_PROB + (LFQAT_MAX_PROB - LFQAT_MIN_PROB) * t
-def compression_aware_alignment_loss(named_params: list[tuple[str, Tensor]]) -> Tensor:
-    device = named_params[0][1].device if named_params else torch.device("cpu")
-    if TRAIN_COMPRESSION_AWARE_WEIGHT <= 0.0 or not TRAIN_COMPRESSION_AWARE_NAME_PATTERNS:
-        return torch.zeros((), dtype=torch.float32, device=device)
-    err = torch.zeros((), dtype=torch.float32, device=device)
-    signal = torch.zeros((), dtype=torch.float32, device=device)
-    matched = 0
-    for name, param in named_params:
-        if not should_train_compression_align(name, param):
-            continue
-        target = compression_aware_int4_target(param, TRAIN_COMPRESSION_AWARE_BLOCK_SIZE)
-        diff = param.float() - target.float()
-        err = err + (diff * diff).sum()
-        signal = signal + (target.float() * target.float()).sum()
-        matched += 1
-    if matched == 0:
-        return torch.zeros((), dtype=torch.float32, device=device)
-    return torch.tensor(TRAIN_COMPRESSION_AWARE_WEIGHT, dtype=torch.float32, device=device) * err / signal.clamp_min(1e-6)
-def fisher_alignment_loss(named_params: list[tuple[str, Tensor]]) -> Tensor:
-    device = named_params[0][1].device if named_params else torch.device("cpu")
-    if LFQAT_FISHER_WEIGHT <= 0.0 or not LFQAT_FISHER_EMA:
-        return torch.zeros((), dtype=torch.float32, device=device)
-    err = signal = torch.zeros((), dtype=torch.float32, device=device)
-    matched = 0
-    for name, param in named_params:
-        weight = LFQAT_FISHER_EMA.get(name)
-        if weight is None or not should_train_qat(name):
-            continue
-        diff = (param.float() - compression_aware_int4_target(param, TRAIN_QAT_BLOCK_SIZE).float()).square().sum()
-        ref = param.float().square().sum()
-        err = err + diff * weight
-        signal = signal + ref * weight
-        matched += 1
-    if matched == 0:
-        return torch.zeros((), dtype=torch.float32, device=device)
-    return torch.tensor(LFQAT_FISHER_WEIGHT, dtype=torch.float32, device=device) * err / signal.clamp_min(1e-6)
-def update_lfqat_fisher(named_params: list[tuple[str, Tensor]]) -> None:
-    if LFQAT_FISHER_WEIGHT <= 0.0:
-        return
-    for name, param in named_params:
-        if param.grad is None or not should_train_qat(name):
-            continue
-        g2 = float(param.grad.detach().float().square().mean().item())
-        prev = LFQAT_FISHER_EMA.get(name, g2)
-        LFQAT_FISHER_EMA[name] = LFQAT_FISHER_DECAY * prev + (1.0 - LFQAT_FISHER_DECAY) * g2
-def grad_name_is_trainable(name: str) -> bool:
-    if TRAIN_GRAD_ONLY_NAME_PATTERNS and not any(pattern in name for pattern in TRAIN_GRAD_ONLY_NAME_PATTERNS):
-        return False
-    if TRAIN_GRAD_SKIP_NAME_PATTERNS and any(pattern in name for pattern in TRAIN_GRAD_SKIP_NAME_PATTERNS):
-        return False
-    return True
-
-
-def apply_grad_mask(named_params: list[tuple[str, Tensor]]) -> None:
-    if not TRAIN_GRAD_ONLY_NAME_PATTERNS and not TRAIN_GRAD_SKIP_NAME_PATTERNS:
-        return
-    for name, param in named_params:
-        if param.grad is not None and not grad_name_is_trainable(name):
-            param.grad.zero_()
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # Single supported clean-script export format:
@@ -608,20 +391,16 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        if should_use_int4_tensor(name, t):
-            q, s, meta = quantize_float_tensor_int4_blockwise(t)
-            qmeta[name] = meta
-        else:
-            q, s = quantize_float_tensor_int8(t)
-            if s.ndim > 0:
-                qmeta[name] = {"scheme": "per_row", "axis": 0}
+        q, s = quantize_float_tensor(t)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
-        "__quant_format__": QUANT_FORMAT,
+        "__quant_format__": "int8_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -639,17 +418,8 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
-        meta = qmeta.get(name, {})
         s = obj["scales"][name]
-        if meta.get("scheme") == "per_row_block_int4":
-            rows, cols = (int(x) for x in meta["shape"])
-            block_size = int(meta["block_size"])
-            blocks_per_row = (cols + block_size - 1) // block_size
-            q_int = unpack_int4_values(q, rows * blocks_per_row * block_size).reshape(rows, blocks_per_row, block_size)
-            out[name] = (
-                q_int.float() * s.to(dtype=torch.float32).reshape(rows, blocks_per_row, 1)
-            ).reshape(rows, blocks_per_row * block_size)[:, :cols].to(dtype=dtype).contiguous()
-        elif meta.get("scheme") == "per_row" or s.ndim > 0:
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
@@ -667,7 +437,7 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
-# DATA LOADING 
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -753,10 +523,8 @@ class RMSNorm(nn.Module):
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
-        name = getattr(self, "weight_name", "")
-        weight = fake_quantize_int4_ste(self.weight, name) if self.training else self.weight
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, weight.to(x.dtype), bias)
+        return F.linear(x, self.weight.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -958,13 +726,6 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
-        for i, b in enumerate(self.blocks):
-            b.attn.c_q.weight_name = f"blocks.{i}.attn.c_q.weight"
-            b.attn.c_k.weight_name = f"blocks.{i}.attn.c_k.weight"
-            b.attn.c_v.weight_name = f"blocks.{i}.attn.c_v.weight"
-            b.attn.proj.weight_name = f"blocks.{i}.attn.proj.weight"
-            b.mlp.fc.weight_name = f"blocks.{i}.mlp.fc.weight"
-            b.mlp.proj.weight_name = f"blocks.{i}.mlp.proj.weight"
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -983,31 +744,31 @@ class GPT(nn.Module):
             self.mlp_scales[step_idx],
         )
 
-    def forward(
-        self, input_ids: Tensor, target_ids: Tensor, return_logits: bool = False, disable_qat: bool = False
-    ) -> Tensor | tuple[Tensor, Tensor]:
-        prev_disable = LFQAT_RUNTIME["disable_qat"]
-        LFQAT_RUNTIME["disable_qat"] = disable_qat
-        try:
-            x = self.tok_emb(input_ids)
-            x = F.rms_norm(x, (x.size(-1),))
-            x0 = x
-            skips: list[Tensor] = []
-            for i in range(self.num_encoder_layers):
-                x = self.run_step(i, x, x0)
-                skips.append(x)
-            for i in range(self.num_decoder_layers):
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.run_step(self.num_encoder_layers + i, x, x0)
-            x = self.final_norm(x).reshape(-1, x.size(-1))
-            targets = target_ids.reshape(-1)
-            logits_proj = F.linear(x, self.tok_emb.weight) if self.tie_embeddings else self.lm_head(x)
-            logits = (self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)).float()
-            loss = F.cross_entropy(logits, targets, reduction="mean")
-            return (loss, logits) if return_logits else loss
-        finally:
-            LFQAT_RUNTIME["disable_qat"] = prev_disable
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.run_step(i, x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.run_step(self.num_encoder_layers + i, x, x0)
+
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        targets = target_ids.reshape(-1)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
 # -----------------------------
@@ -1031,9 +792,9 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", "0"))
-    if grad_accum_steps <= 0:
-        grad_accum_steps = 8 // world_size if 8 % world_size == 0 else 1
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -1127,21 +888,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    if args.init_model_path:
-        init_state = torch.load(args.init_model_path, map_location="cpu")
-        expected = set(base_model.state_dict().keys())
-        found = set(init_state.keys())
-        missing = sorted(expected - found)
-        extra = sorted(found - expected)
-        if missing or extra:
-            raise ValueError(
-                f"INIT_MODEL_PATH mismatch missing={missing[:5]} extra={extra[:5]} "
-                f"(missing={len(missing)} extra={len(extra)})"
-            )
-        base_model.load_state_dict(init_state, strict=True)
-    use_compile = not lfqat_enabled()
-    wrapped_model = torch.compile(base_model, dynamic=False, fullgraph=True) if use_compile else base_model
-    model: nn.Module = DDP(wrapped_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else wrapped_model
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -1202,31 +950,6 @@ def main() -> None:
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
-        f"init_model_path:{args.init_model_path if args.init_model_path else '-'} "
-        f"quant_format:{QUANT_FORMAT} "
-        f"int4_patterns:{','.join(INT4_NAME_PATTERNS) if INT4_NAME_PATTERNS else '-'} "
-        f"int4_block_size:{INT4_BLOCK_SIZE}"
-    )
-    log0(
-        f"train_compression_aware_weight:{TRAIN_COMPRESSION_AWARE_WEIGHT} "
-        f"train_compression_aware_patterns:{','.join(TRAIN_COMPRESSION_AWARE_NAME_PATTERNS) if TRAIN_COMPRESSION_AWARE_NAME_PATTERNS else '-'} "
-        f"train_compression_aware_block_size:{TRAIN_COMPRESSION_AWARE_BLOCK_SIZE}"
-    )
-    log0(
-        f"train_grad_only_patterns:{','.join(TRAIN_GRAD_ONLY_NAME_PATTERNS) if TRAIN_GRAD_ONLY_NAME_PATTERNS else '-'} "
-        f"train_grad_skip_patterns:{','.join(TRAIN_GRAD_SKIP_NAME_PATTERNS) if TRAIN_GRAD_SKIP_NAME_PATTERNS else '-'}"
-    )
-    log0(
-        f"train_qat_patterns:{','.join(TRAIN_QAT_NAME_PATTERNS) if TRAIN_QAT_NAME_PATTERNS else '-'} "
-        f"train_qat_block_size:{TRAIN_QAT_BLOCK_SIZE}"
-    )
-    log0(
-        f"lfqat_enabled:{lfqat_enabled()} lfqat_kl_weight:{LFQAT_KL_WEIGHT} "
-        f"lfqat_fisher_weight:{LFQAT_FISHER_WEIGHT} lfqat_temperature:{LFQAT_TEMPERATURE} "
-        f"lfqat_prob:{LFQAT_MIN_PROB}->{LFQAT_MAX_PROB} lfqat_steps:{LFQAT_START_STEP}->{LFQAT_FULL_STEP} "
-        f"compile:{use_compile}"
-    )
-    log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
@@ -1235,8 +958,7 @@ def main() -> None:
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"layers:{args.num_layers} unique_layers:{args.num_unique_layers} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
-        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f} "
-        f"lr_schedule:{args.lr_schedule} lr_warmup_iters:{args.lr_warmup_iters} min_lr_scale:{args.min_lr_scale:.3f}"
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
 
@@ -1253,44 +975,19 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
-        def apply_warmup(scale: float) -> float:
-            if args.lr_warmup_iters <= 0:
-                return scale
-            return scale * min((step + 1) / args.lr_warmup_iters, 1.0)
-
-        if args.lr_schedule == "constant":
-            return apply_warmup(1.0)
-
-        if args.lr_schedule == "cosine":
-            if max_wallclock_ms is not None:
-                progress = min(elapsed_ms / max(max_wallclock_ms, 1e-9), 1.0)
-            else:
-                progress = min(step / max(args.iterations - 1, 1), 1.0)
-            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
-            return apply_warmup(args.min_lr_scale + (1.0 - args.min_lr_scale) * cosine)
-
-        if args.lr_schedule != "warmdown":
-            raise ValueError(f"unsupported LR_SCHEDULE={args.lr_schedule!r}")
-
         if args.warmdown_iters <= 0:
-            return apply_warmup(1.0)
+            return 1.0
         if max_wallclock_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            scale = (
-                max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
-                if warmdown_start <= step < args.iterations
-                else 1.0
-            )
-            return apply_warmup(scale)
+            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-        scale = remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
-        return apply_warmup(scale)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
-    if args.warmup_steps > 0 and use_compile:
+    if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1301,7 +998,7 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y) + compression_aware_alignment_loss(named_params)
+                    warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1362,7 +1059,6 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        LFQAT_RUNTIME["prob"] = lfqat_prob_for_step(step)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1370,20 +1066,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                need_logits = lfqat_enabled() and LFQAT_KL_WEIGHT > 0.0
-                if need_logits:
-                    loss, student_logits = model(x, y, return_logits=True)
-                    with torch.no_grad():
-                        _, teacher_logits = base_model(x, y, return_logits=True, disable_qat=True)
-                    tau = max(LFQAT_TEMPERATURE, 1e-3)
-                    loss = loss + LFQAT_KL_WEIGHT * (tau * tau) * F.kl_div(
-                        F.log_softmax(student_logits / tau, dim=-1),
-                        F.softmax(teacher_logits / tau, dim=-1),
-                        reduction="batchmean",
-                    )
-                else:
-                    loss = model(x, y)
-                loss = loss + compression_aware_alignment_loss(named_params) + fisher_alignment_loss(named_params)
+                loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -1397,8 +1080,6 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
 
-        update_lfqat_fisher(named_params)
-        apply_grad_mask(named_params)
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
@@ -1414,8 +1095,7 @@ def main() -> None:
         if should_log_train:
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms "
-                f"lfqat_prob:{LFQAT_RUNTIME['prob']:.3f}"
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
 
         # Needed to sync whether we've reached the wallclock cap.
