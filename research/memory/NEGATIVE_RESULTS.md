@@ -1,0 +1,76 @@
+# Negative Results
+
+## 2026-03-22
+- The first sparse/asymmetric `cross_skip` follow-up on the reproduced donor is negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_top2_40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_top2_40_fc_top4_m4.txt)
+  - shipped `1.98455752`
+  - verdict: limiting `cross_skip` to the top two decoder layers is worse than the reproduced all-decoder branch and should not be the default next move
+- On local `u4k 12x608 share6`, `average_modulo` is a dead sharing direction: [lab_u4k_12x608_kv2_share6_average_modulo_eval0_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share6_average_modulo_eval0_m4.txt) shipped `2.65343010` and stayed over cap with the default fp16 exporter.
+- On the same family, `last_cycle` is even worse: [lab_u4k_12x608_kv2_share6_last_cycle_eval0_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share6_last_cycle_eval0_m4.txt) shipped `3.11384435`.
+- The current `u4k share6` checkpoint is close, but not close enough for exporter-only salvation. Even its best legal exporter in [local_u4k_12x608_share6_first_cycle_continue120_int8all_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share6_first_cycle_continue120_int8all_export_gap.md) only reached `2.00187835`.
+- On the new partial-sharing frontier, `share8 contiguous_partition` is dead. It shipped at `2.19011574` and is not competitive with the `first_cycle` family.
+- On the same frontier, `share11 first_cycle` is weaker than `share10` and pure `int8_all` is over cap: [lab_u4k_12x608_kv2_share11_first_cycle_eval0_int8all_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share11_first_cycle_eval0_int8all_m4.txt) shipped `1.98845817`.
+- Full-body exporter-aware continuation on the new `share10` donor is negative so far: [lab_u4k_12x608_kv2_share10_first_cycle_continue80_fc_top3_int4aware_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_continue80_fc_top3_int4aware_m4.txt) regressed to `1.98892672`.
+- On the new `share10 dualrole + bus` anchor, shrinking the expensive fp16 corridor works only up to a point:
+  - [local_u4k_12x608_share10_dualrole01_bus20_minihybrid_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_minihybrid_export_gap.md): `fc_top3_int4` is clearly worse at `1.98545449`.
+  - [local_u4k_12x608_share10_dualrole01_bus20_top2hybrid_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_top2hybrid_export_gap.md): `fc_top4_attn_top2_fp16` is legal but already slightly behind `fc_top4_attn_top1_fp16` at `1.98453859`.
+  - [local_u4k_12x608_share10_dualrole01_bus20_top2hybrid_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_top2hybrid_export_gap.md): `fc_top4_proj_top2_fp16` and `fc_top4_proj_top2_attn_top2_fp16` are both over cap (`16,972,692` and `17,947,288` total).
+- The first boundary-aware bus v2 branch is negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_boundary_top4r_top2w20_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_boundary_top4r_top2w20_fc_top4_m4.txt): shipped `1.98455440`
+  - [local_u4k_12x608_share10_dualrole01_bus20_boundary_top4r_top2w20_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_boundary_top4r_top2w20_export_gap.md): strongest fixed exporter still only `1.98453631`
+  - verdict: boundary-aware bus summary plus asymmetric top4-read/top2-write did not buy a checkpoint win
+- The first pure token-flow branch on the active donor is strongly negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_byteweight40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_byteweight40_fc_top4_m4.txt): training-run shipped `2.04253031`
+  - [local_u4k_12x608_share10_dualrole01_bus20_byteweight40_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_byteweight40_export_gap.md): best fixed exporter only `2.04248476`
+  - verdict: direct byte-weighted CE damages the checkpoint on this donor
+- The first cheap gated decoder `second_pass` branch is also negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_secondpass89_gate40_fc_top4_m4_retry1.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_secondpass89_gate40_fc_top4_m4_retry1.txt): training-run shipped `1.99239355`
+  - [local_u4k_12x608_share10_dualrole01_bus20_secondpass89_export_gap_v2.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_secondpass89_export_gap_v2.md): best fixed exporter only `1.99238898`
+  - verdict: this post-hoc recurrent reuse design is not the right structural lever
+- The first structural remap bracket is also negative on the active donor:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap8989_eval0_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap8989_eval0_fc_top4_m4.txt): `1.98614203`
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap9988_eval0_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap9988_eval0_fc_top4_m4.txt): `1.98605052`
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap6767_eval0_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap6767_eval0_fc_top4_m4.txt): `1.98580117`
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap4545_eval0_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_remap4545_eval0_fc_top4_m4.txt): `1.98499612`
+  - verdict: moving repeated/shared computation to different decoder slots did not help this donor
+- Joint communication retraining on the active donor is also negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_busjoint40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_busjoint40_fc_top4_m4.txt): training-run shipped `1.98454816`
+  - verdict: the bus and `cross_skip` do not want to move together on this donor; freezing `global_bus*` is better than jointly retraining both control paths
+- The first token-pair frontier stack on the active donor is also negative:
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_pairfeat40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_pairfeat40_fc_top4_m4.txt): shipped `1.98477693`
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_smear40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_smear40_fc_top4_m4.txt): shipped `1.98480479`
+  - [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_bigram40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_bigram40_fc_top4_m4.txt): closest token-pair branch, but still behind at training-run shipped `1.98453402`
+  - [local_u4k_12x608_share10_dualrole01_bus20_crossskip40_bigram40_targeted_export_check.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_crossskip40_bigram40_targeted_export_check.md): even the best fixed exporter only reached `1.98453381`
+  - verdict: do not reopen the first `SmearGate + BigramHash` stack on this donor unless a new donor or a much smaller hash path changes the economics
+- Even the strongest tiny fp16 corridor is not yet a global lock change: [local_u4k_12x608_share10_dualrole01_bus20_minihybrid_export_gap.md](/Users/ronaldschmidt/openai/research/local_u4k_12x608_share10_dualrole01_bus20_minihybrid_export_gap.md) shows `fc_top4_proj_top1_attn_top1_fp16` at `1.98453589`, but it is still illegal at `16,435,203` total bytes.
+- Width-up on the current `u4k share6 first_cycle` line is negative:
+  - [lab_u4k_12x640_kv2_share6_first_cycle_expand_continue120_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x640_kv2_share6_first_cycle_expand_continue120_m4.txt): shipped `2.01324506`
+  - [lab_u4k_12x704_kv2_share6_first_cycle_expand_continue120_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x704_kv2_share6_first_cycle_expand_continue120_m4.txt): shipped `2.02064519`
+- Exporter-aligned kept-fp16 recovery on the winning `projhi_attnhi` corridor is also negative: [lab_u4k_12x608_kv2_share6_first_cycle_projhi_attnhi_recovery80_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share6_first_cycle_projhi_attnhi_recovery80_m4.txt) shipped `2.00507337`.
+
+## Known weak branches
+- On the active `12x576 share6` checkpoint, naive tensor-adaptive `quantile16` codebooks are measured and losing. Even the best tested point, `quantile_codebook_qer_projattn_top6_r224`, reached only `2.14020368`, behind both the normal-codebook frontier (`2.13976149`) and the fp16 winner (`2.13867183`).
+- On the active `12x576 share6` checkpoint, the other smarter-codebook branches we tested still lost to the new winner. `mulaw_codebook_qer_projattn_top6_r192` reached `2.13997765`, and plain `lloyd_codebook_projattn_top6` only reached `2.14291344`, both behind `lloyd_codebook_qer_projattn_top6_r224`.
+- The third `12x576 share6` QER-aware continuation with even lower LR is negative. [local_sp1024_12x576_share6_codebook_qer_tail20_ultralow_probe.md](/Users/ronaldschmidt/openai/research/local_sp1024_12x576_share6_codebook_qer_tail20_ultralow_probe.md) measured the saved checkpoint at `2.14029037`, worse than the previous anchor `2.13867183`.
+- The older `10x544` local line improved somewhat under `maxtrain`, but its best measured shipped point (`2.7270`) still lagged far behind the `10x560` local line.
+- Pure isolated `block4.mlp.proj` int8-aware recovery on `10x560` was slightly negative on shipped.
+- Repeated `10x560` microtails keep producing only tiny sub-threshold gains, so they are no longer good default experiments.
+- `10x576 KV2` with conservative `baseline_export_b128` was decisively weak locally: clean `2.6594`, shipped `2.9861`, compressed model `4.85MB`. It did not show enough raw quality or shipping efficiency to justify follow-up on the same exact branch.
+- `11x560 KV2` looked weak even before the first validation checkpoint: by `step 40` it was slightly behind `10x576` on train loss while running materially slower, so it was killed early as a poor quality-per-minute branch.
+- Shared-depth branches do not like mixed int4 exporters. On `12x544 share6`, the strong legal results come from fp16 `proj/attn` keeps, while the mixed int4 variants regress badly.
+- `12x544 share6` scratch alone is not competitive with the global anchor. The branch only became interesting after a low-LR continuation improved raw quality while preserving the tiny export gap.
+- `12x560 share6` scratch alone was also not enough to win the local frontier. The branch only became the leader after bounded continuation tails.
+- On the shared-depth `12x560` line, conservative non-winning exporters are now clearly separated: `projhi_attnhi_fp16` and `int8_all` stay materially behind `proj_top6_attn_top6_fp16`, so they are no longer useful as primary experiments.
+- Repeating the exact same `12x560 share6` continuation trick forever is no longer high-EV. The femtotail still kept, but the marginal gain shrank enough that the next loop should be structural, not another cloned microtail.
+- The first `12x576` boot adaptation alone was not enough to beat the `12x560` femtotail winner. On this branch, one width-up boot run is not sufficient evidence by itself; the useful signal appeared only after bounded follow-up continuations.
+- The apparent `u4k 12x608` MLX “finalization crash” was not a model bug; it was a nearly full local disk. Treat late failures near `saved_model` as a storage check first.
+- `lab_u4k_12x608_kv2_lfqat60_reramp_continue40_vb64k_retry1` is a clear negative local result: it finalized cleanly after the disk fix, but regressed from `1.9854` to `2.0215` shipped.
+- `lab_u4k_14x576_kv2_ultralow_continue20_retry1` is also a clear negative result: even a very gentle `20`-step low-LR tail on the strong near-cap `14x576` checkpoint regressed to `2.0081` shipped.
+- On the local legal `u4k` frontier, naive continuation tails on both leading families (`12x608` LFQAT winner and `14x576` near-cap control) are now refuted. The next local move should be structural or token-processing, not another same-family tail.
+- On the `12x576 share6` checkpoint, low-rank reconstruction at small ranks (`r8`, `r16`) is real but not enough to threaten the fp16-keep winner. Those points are now dominated by higher-rank QER settings.
+- Naive larger-tokenizer transfer is not good enough. The first `u5k` averaged transplant gate started at shipped `3.4642`, and the first full continuation only reached `2.4708`.
+- The first conservative `u4k 12x608` token-flow tail at `seq_len=896` is negative: `lab_u4k_12x608_kv2_tokenflow896_continue40` finished at shipped `2.0030`, worse than the locked `1.9854` anchor.
+- On the revived `u5k` exact-copy branch, a second ultralow continuation already flattened. `lab_u5k_12x608_kv2_transplant_continue40_ultralow_exactcopy` landed at `2.10392536`, effectively tied with the first keep `2.10387409`.
+- The smarter codebook/QER exporter does not transfer automatically to the alive `u5k 12x608` branch. In [local_u5k_12x608_seq896_codebook_transfer.md](/Users/ronaldschmidt/openai/research/local_u5k_12x608_seq896_codebook_transfer.md), `fcproj_hi` stayed best at `2.10282351`, while all tested codebook/QER variants were both worse and over the `16MB` cap.
+- A larger unigram is not automatically a better tokenizer branch. `debug_u6k_12x608_transplant_eval0_exactcopy` saved more tokens than `u5k` on the frozen corpus, but still started worse at shipped `2.19966345`.
+- A sideways `4k` BPE branch is clearly weak on this corpus. `debug_b4k_12x608_transplant_eval0_exactcopy` landed at shipped `2.73211769` and even had slightly more tokens than the `u4k` unigram baseline.

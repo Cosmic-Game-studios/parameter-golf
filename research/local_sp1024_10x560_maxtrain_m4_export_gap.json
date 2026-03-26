@@ -1,0 +1,429 @@
+{
+  "config": {
+    "name": "local_sp1024_10x560_m4",
+    "checkpoint": "./logs/autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_fp16_mlx_model.npz",
+    "data_path": "./data/datasets/fineweb10B_sp1024",
+    "tokenizer_path": "./data/tokenizers/fineweb_1024_bpe.model",
+    "vocab_size": 1024,
+    "num_layers": 10,
+    "num_unique_layers": 10,
+    "model_dim": 560,
+    "num_heads": 8,
+    "num_kv_heads": 2,
+    "mlp_mult": 2,
+    "train_seq_len": 896,
+    "qk_gain_init": 1.45,
+    "rope_base": 10000.0,
+    "logit_softcap": 28.5,
+    "python_exe": "./.venv/bin/python",
+    "train_script": "train_gpt_mlx.py",
+    "counted_code_path": "train_gpt.py",
+    "train_batch_tokens": 16384,
+    "val_batch_size": 32768,
+    "val_max_tokens": 262144,
+    "lr_schedule": "cosine",
+    "lr_warmup_iters": 24,
+    "min_lr_scale": 0.16,
+    "tied_embed_lr": 0.002,
+    "matrix_lr": 0.00135,
+    "scalar_lr": 0.00135,
+    "int4_block_size": 64,
+    "logs_dir": "logs/export_gap_local_sp1024_10x560_maxtrain_seq896",
+    "reference_policy_name": "fchi_top4_attn_top4_fp16"
+  },
+  "legal_budget_bytes": 16000000,
+  "best_legal": {
+    "name": "projhi_attnhi_fp16",
+    "quant_format": "int8_clean_per_row_v1",
+    "int4_groups": [],
+    "fp16_groups": [
+      "proj_hi",
+      "attn_hi"
+    ],
+    "int4_patterns": [],
+    "fp16_patterns": [
+      "blocks.5.attn.proj.weight",
+      "blocks.5.mlp.proj.weight",
+      "blocks.6.attn.proj.weight",
+      "blocks.6.mlp.proj.weight",
+      "blocks.7.attn.proj.weight",
+      "blocks.7.mlp.proj.weight",
+      "blocks.8.attn.proj.weight",
+      "blocks.8.mlp.proj.weight",
+      "blocks.9.attn.proj.weight",
+      "blocks.9.mlp.proj.weight"
+    ],
+    "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__projhi_attnhi_fp16.txt",
+    "compressed_bytes": 14999305,
+    "counted_code_bytes": 67722,
+    "total_bytes": 15067027,
+    "clean_val_loss": 4.344,
+    "clean_val_bpb": 2.5724,
+    "shipped_val_loss": 4.48173952,
+    "shipped_val_bpb": 2.65395662,
+    "export_gap_bpb": 0.08155662000000019,
+    "legal": true,
+    "score": 2.6825014370000004,
+    "notes": "Conservative fp16 keep-float on upper projections."
+  },
+  "reference_policy": {
+    "name": "fchi_top4_attn_top4_fp16",
+    "quant_format": "mixed_int4_int8_packed_v2",
+    "int4_groups": [
+      "fc_top4"
+    ],
+    "fp16_groups": [
+      "attn_top4"
+    ],
+    "int4_patterns": [
+      "blocks.6.mlp.fc.weight",
+      "blocks.7.mlp.fc.weight",
+      "blocks.8.mlp.fc.weight",
+      "blocks.9.mlp.fc.weight"
+    ],
+    "fp16_patterns": [
+      "blocks.6.attn.proj.weight",
+      "blocks.7.attn.proj.weight",
+      "blocks.8.attn.proj.weight",
+      "blocks.9.attn.proj.weight"
+    ],
+    "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fchi_top4_attn_top4_fp16.txt",
+    "compressed_bytes": 7609090,
+    "counted_code_bytes": 67722,
+    "total_bytes": 7676812,
+    "clean_val_loss": 4.344,
+    "clean_val_bpb": 2.5724,
+    "shipped_val_loss": 4.64554644,
+    "shipped_val_bpb": 2.75095835,
+    "export_gap_bpb": 0.17855834999999987,
+    "legal": true,
+    "score": 2.8134537725,
+    "notes": "Top-N fc int4 + top-N attn fp16."
+  },
+  "top_results": [
+    {
+      "name": "projhi_attnhi_fp16",
+      "quant_format": "int8_clean_per_row_v1",
+      "int4_groups": [],
+      "fp16_groups": [
+        "proj_hi",
+        "attn_hi"
+      ],
+      "int4_patterns": [],
+      "fp16_patterns": [
+        "blocks.5.attn.proj.weight",
+        "blocks.5.mlp.proj.weight",
+        "blocks.6.attn.proj.weight",
+        "blocks.6.mlp.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.7.mlp.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.attn.proj.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__projhi_attnhi_fp16.txt",
+      "compressed_bytes": 14999305,
+      "counted_code_bytes": 67722,
+      "total_bytes": 15067027,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.48173952,
+      "shipped_val_bpb": 2.65395662,
+      "export_gap_bpb": 0.08155662000000019,
+      "legal": true,
+      "score": 2.6825014370000004,
+      "notes": "Conservative fp16 keep-float on upper projections."
+    },
+    {
+      "name": "tok_attnhi_fp16",
+      "quant_format": "int8_clean_per_row_v1",
+      "int4_groups": [],
+      "fp16_groups": [
+        "tok",
+        "attn_hi"
+      ],
+      "int4_patterns": [],
+      "fp16_patterns": [
+        "blocks.5.attn.proj.weight",
+        "blocks.6.attn.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight",
+        "tok_emb.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__tok_attnhi_fp16.txt",
+      "compressed_bytes": 10029289,
+      "counted_code_bytes": 67722,
+      "total_bytes": 10097011,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.50343752,
+      "shipped_val_bpb": 2.66680555,
+      "export_gap_bpb": 0.09440554999999984,
+      "legal": true,
+      "score": 2.6998474925,
+      "notes": "Embedding plus upper attention recovery."
+    },
+    {
+      "name": "int8_tok_fp16",
+      "quant_format": "int8_clean_per_row_v1",
+      "int4_groups": [],
+      "fp16_groups": [
+        "tok"
+      ],
+      "int4_patterns": [],
+      "fp16_patterns": [
+        "tok_emb.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__int8_tok_fp16.txt",
+      "compressed_bytes": 7220419,
+      "counted_code_bytes": 67722,
+      "total_bytes": 7288141,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.52587223,
+      "shipped_val_bpb": 2.68009074,
+      "export_gap_bpb": 0.10769073999999978,
+      "legal": true,
+      "score": 2.7177824989999997,
+      "notes": "Buy back embedding quality."
+    },
+    {
+      "name": "int8_all",
+      "quant_format": "int8_clean_per_row_v1",
+      "int4_groups": [],
+      "fp16_groups": [],
+      "int4_patterns": [],
+      "fp16_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__int8_all.txt",
+      "compressed_bytes": 6634245,
+      "counted_code_bytes": 67722,
+      "total_bytes": 6701967,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.53723335,
+      "shipped_val_bpb": 2.68681847,
+      "export_gap_bpb": 0.11441846999999994,
+      "legal": true,
+      "score": 2.7268649345,
+      "notes": "Pure int8 control."
+    },
+    {
+      "name": "fchi_top4_attn_top4_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_top4"
+      ],
+      "fp16_groups": [
+        "attn_top4"
+      ],
+      "int4_patterns": [
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.6.attn.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fchi_top4_attn_top4_fp16.txt",
+      "compressed_bytes": 7609090,
+      "counted_code_bytes": 67722,
+      "total_bytes": 7676812,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.64554644,
+      "shipped_val_bpb": 2.75095835,
+      "export_gap_bpb": 0.17855834999999987,
+      "legal": true,
+      "score": 2.8134537725,
+      "notes": "Top-N fc int4 + top-N attn fp16."
+    },
+    {
+      "name": "fchi_attnhi_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_hi"
+      ],
+      "fp16_groups": [
+        "attn_hi"
+      ],
+      "int4_patterns": [
+        "blocks.5.mlp.fc.weight",
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.5.attn.proj.weight",
+        "blocks.6.attn.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fchi_attnhi_fp16.txt",
+      "compressed_bytes": 7852875,
+      "counted_code_bytes": 67722,
+      "total_bytes": 7920597,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.68334484,
+      "shipped_val_bpb": 2.77334147,
+      "export_gap_bpb": 0.20094147000000007,
+      "legal": true,
+      "score": 2.8436709845,
+      "notes": "Current strongest family for preserving attention output."
+    },
+    {
+      "name": "fcproj_attnhi_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_hi",
+        "proj_hi"
+      ],
+      "fp16_groups": [
+        "attn_hi"
+      ],
+      "int4_patterns": [
+        "blocks.5.mlp.fc.weight",
+        "blocks.5.mlp.proj.weight",
+        "blocks.6.mlp.fc.weight",
+        "blocks.6.mlp.proj.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.7.mlp.proj.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.mlp.fc.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.5.attn.proj.weight",
+        "blocks.6.attn.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fcproj_attnhi_fp16.txt",
+      "compressed_bytes": 7601177,
+      "counted_code_bytes": 67722,
+      "total_bytes": 7668899,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.68335438,
+      "shipped_val_bpb": 2.77334712,
+      "export_gap_bpb": 0.20094711999999992,
+      "legal": true,
+      "score": 2.8436786119999997,
+      "notes": "Hybrid export with upper attn.proj in fp16."
+    },
+    {
+      "name": "fcproj_top5_attn_top5_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_top5",
+        "proj_top5"
+      ],
+      "fp16_groups": [
+        "attn_top5"
+      ],
+      "int4_patterns": [
+        "blocks.5.mlp.fc.weight",
+        "blocks.5.mlp.proj.weight",
+        "blocks.6.mlp.fc.weight",
+        "blocks.6.mlp.proj.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.7.mlp.proj.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.mlp.fc.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.5.attn.proj.weight",
+        "blocks.6.attn.proj.weight",
+        "blocks.7.attn.proj.weight",
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight"
+      ],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fcproj_top5_attn_top5_fp16.txt",
+      "compressed_bytes": 7601177,
+      "counted_code_bytes": 67722,
+      "total_bytes": 7668899,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.68335438,
+      "shipped_val_bpb": 2.77334712,
+      "export_gap_bpb": 0.20094711999999992,
+      "legal": true,
+      "score": 2.8436786119999997,
+      "notes": "Top-N fc/proj int4 + top-N attn fp16."
+    },
+    {
+      "name": "fchi_only",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_hi"
+      ],
+      "fp16_groups": [],
+      "int4_patterns": [
+        "blocks.5.mlp.fc.weight",
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fchi_only.txt",
+      "compressed_bytes": 5032203,
+      "counted_code_bytes": 67722,
+      "total_bytes": 5099925,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.72246408,
+      "shipped_val_bpb": 2.79650675,
+      "export_gap_bpb": 0.2241067499999998,
+      "legal": true,
+      "score": 2.8749441124999997,
+      "notes": "Upper mlp.fc only int4."
+    },
+    {
+      "name": "fcproj_hi",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "int4_groups": [
+        "fc_hi",
+        "proj_hi"
+      ],
+      "fp16_groups": [],
+      "int4_patterns": [
+        "blocks.5.mlp.fc.weight",
+        "blocks.5.mlp.proj.weight",
+        "blocks.6.mlp.fc.weight",
+        "blocks.6.mlp.proj.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.7.mlp.proj.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.mlp.fc.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "fp16_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_maxtrain_seq896/local_sp1024_10x560_m4__fcproj_hi.txt",
+      "compressed_bytes": 4785280,
+      "counted_code_bytes": 67722,
+      "total_bytes": 4853002,
+      "clean_val_loss": 4.344,
+      "clean_val_bpb": 2.5724,
+      "shipped_val_loss": 4.72247124,
+      "shipped_val_bpb": 2.79651099,
+      "export_gap_bpb": 0.2241109899999998,
+      "legal": true,
+      "score": 2.8749498365,
+      "notes": "Upper fc+proj int4."
+    }
+  ]
+}

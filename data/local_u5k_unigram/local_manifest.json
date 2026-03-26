@@ -1,0 +1,24 @@
+{
+  "dataset_name": "fineweb10B_spu5120_local",
+  "dataset_suffix": "spu5120_local",
+  "model_type": "unigram",
+  "source_data_path": "/Users/ronaldschmidt/openai/data/datasets/fineweb10B_sp1024",
+  "source_kind": "local_decoded_sp_shards",
+  "source_tokenizer_path": "/Users/ronaldschmidt/openai/data/tokenizers/fineweb_1024_bpe.model",
+  "tokenizer_model_path": "/Users/ronaldschmidt/openai/data/local_u5k_unigram/tokenizers/fineweb_5120_unigram.model",
+  "tokenizer_train_docs": 80010,
+  "tokenizer_vocab_path": "/Users/ronaldschmidt/openai/data/local_u5k_unigram/tokenizers/fineweb_5120_unigram.vocab",
+  "train_doc_limit": null,
+  "train_stats": {
+    "docs": 80010,
+    "files": 1,
+    "tokens": 70489732
+  },
+  "val_doc_limit": null,
+  "val_stats": {
+    "docs": 50000,
+    "files": 1,
+    "tokens": 43715916
+  },
+  "vocab_size": 5120
+}

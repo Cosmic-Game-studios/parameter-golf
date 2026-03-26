@@ -1,0 +1,3 @@
+[submodule ".deepresearch-repo"]
+	path = .deepresearch-repo
+	url = https://github.com/Cosmic-Game-studios/deepresearch.git

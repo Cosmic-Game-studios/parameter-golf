@@ -10,3 +10,7 @@ data/docs_selected.jsonl
 .venv
 logs/
 data/local_u4k_unigram/
+.deepresearch/
+data/local_b4k_bpe/datasets/fineweb10B_spb4096_local/fineweb_train_000000.bin
+data/local_u5k_unigram/datasets/fineweb10B_spu5120_local/fineweb_train_000000.bin
+data/local_u6k_unigram/datasets/fineweb10B_spu6144_local/fineweb_train_000000.bin

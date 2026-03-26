@@ -1,0 +1,523 @@
+{
+  "mode": "local-first",
+  "best_measured_official": {
+    "run": "final_sp1024_bpe_sp_10x512_kv2_context_896_dense_stable_muon97_int8_attnhi",
+    "hypothesis": "The top offline seeker candidate must be measured on the real official 8xH100 / 600s budget before trusting any further sp1024 search.",
+    "config": "Official fineweb10B_sp1024, 8xH100, 10x512 KV2, seq=896, train_batch_tokens=573,440, GRAD_ACCUM_STEPS=1, Muon 0.97, MAX_WALLCLOCK_SECONDS=600, export=int8_attnhi.",
+    "runtime": "428.9s train + 4.0s roundtrip eval",
+    "artifact_bytes": "12,126,772 total",
+    "metrics": "2.3365 / 1.3838 clean at stop, 2.5505 / 1.5106 post-quant",
+    "conclusion": "First completed official 8xH100 seeker run. Much stronger than the 1xH100 probe, but still far from 1.1 and it left about 171s of the official wallclock budget unused because ITERATIONS=2500 was too low.",
+    "total_bytes": 12126772,
+    "clean_bpb": 1.3838,
+    "shipped_bpb": 1.5106,
+    "official": true,
+    "dense": true,
+    "tokenizer": "sp1024",
+    "layers": 10,
+    "model_dim": 512,
+    "num_kv_heads": 2,
+    "mlp_mult": null
+  },
+  "best_measured_local": {
+    "run": "dense_u4k_12x608_kv2_lfqat60_fcproj",
+    "hypothesis": "A targeted Fisher- and KL-guided LFQAT phase on the legal fc_hi + proj_hi export family can beat both raw continuation and earlier post-hoc-only legalizers.",
+    "config": "Start from 12x608 raw adapt150, 60 steps, constant low LR (0.004/0.003/0.003), TRAIN_QAT=fc_hi+proj_hi, TRAIN_COMPRESSION_AWARE_WEIGHT=0.0015, LFQAT_KL_WEIGHT=0.05, LFQAT_FISHER_WEIGHT=0.01, ramp qat_prob=0.15->1.0 by step 30.",
+    "runtime": "330.8s train + 14.3s roundtrip eval",
+    "artifact_bytes": "14,796,847 total",
+    "metrics": "4.5523 / 1.9854 post-quant",
+    "conclusion": "New best legal 262k local result. Beats the previous 12x608 legal leader by 0.0307 bpb and is the first local run under 1.99 in this dense line.",
+    "total_bytes": 14796847,
+    "clean_bpb": null,
+    "shipped_bpb": 1.9854,
+    "official": false,
+    "dense": true,
+    "tokenizer": "u4k",
+    "layers": 12,
+    "model_dim": 608,
+    "num_kv_heads": null,
+    "mlp_mult": null
+  },
+  "best_measured_local_result": {
+    "name": "u5k_12x608_seq896_continue40",
+    "run_id": "lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy",
+    "tier": "local",
+    "status": "kept",
+    "clean_bpb": 2.1087,
+    "shipped_bpb": 2.10282311,
+    "export_gap_bpb": -0.00587689,
+    "note": "first token-flow retune on the alive u5k checkpoint bought a small real keep, so the next local lever remains on this branch rather than another raw tokenizer family"
+  },
+  "best_measured_export_gap": {
+    "name": "projhi_attnhi_fp16",
+    "quant_format": "int8_clean_per_row_v1",
+    "int4_groups": [],
+    "fp16_groups": [
+      "proj_hi",
+      "attn_hi"
+    ],
+    "int4_patterns": [],
+    "fp16_patterns": [
+      "blocks.5.attn.proj.weight",
+      "blocks.5.mlp.proj.weight",
+      "blocks.6.attn.proj.weight",
+      "blocks.6.mlp.proj.weight",
+      "blocks.7.attn.proj.weight",
+      "blocks.7.mlp.proj.weight",
+      "blocks.8.attn.proj.weight",
+      "blocks.8.mlp.proj.weight",
+      "blocks.9.attn.proj.weight",
+      "blocks.9.mlp.proj.weight"
+    ],
+    "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_sp1024_10x560_seq896/local_sp1024_10x560_m4__9123b7ed3c__projhi_attnhi_fp16.txt",
+    "compressed_bytes": 15503125,
+    "counted_code_bytes": 67722,
+    "total_bytes": 15570847,
+    "clean_val_loss": 3.5583,
+    "clean_val_bpb": 2.1071,
+    "shipped_val_loss": 3.83511257,
+    "shipped_val_bpb": 2.27104283,
+    "export_gap_bpb": 0.16394282999999987,
+    "legal": true,
+    "score": 2.3284228204999997,
+    "notes": "Conservative fp16 keep-float on upper projections."
+  },
+  "resolved_results": [
+    {
+      "name": "u5k_12x608_exactcopy_gate",
+      "run_id": "debug_u5k_12x608_transplant_eval0_exactcopy",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1746,
+      "shipped_bpb": 2.17331566,
+      "export_gap_bpb": -0.00128434,
+      "note": "exact-copying shared SentencePiece rows turned the same larger-tokenizer branch from clearly bad into an alive starting point"
+    },
+    {
+      "name": "u5k_12x608_exactcopy_lowlr40",
+      "run_id": "lab_u5k_12x608_kv2_transplant_lowlr40_fcproj_exactcopy",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1087,
+      "shipped_bpb": 2.10387409,
+      "export_gap_bpb": -0.00482591,
+      "note": "first careful continuation on the corrected tokenizer transfer became the best measured tokenizer-transfer challenger so far"
+    },
+    {
+      "name": "u5k_12x608_exactcopy_continue40_ultralow",
+      "run_id": "lab_u5k_12x608_kv2_transplant_continue40_ultralow_exactcopy",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.1093,
+      "shipped_bpb": 2.10392536,
+      "export_gap_bpb": -0.00537464,
+      "note": "second continuation was effectively flat to slightly worse, so this exact u5k exploit style has already plateaued"
+    },
+    {
+      "name": "sp1024_10x560_export_first_hybrid_int8aware_block4attn_keptfp16_80",
+      "run_id": "autoresearch_sp1024_10x560_hybrid_int8aware_block4attn_keptfp16_80",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1093,
+      "shipped_bpb": 2.27195757,
+      "export_gap_bpb": 0.16265757,
+      "note": "hybrid int8-aware block4 attn.proj plus the proven kept-fp16 recovery corridor bought a new best local shipped point, but only by a tiny sub-threshold margin; treat it as another saturation keep, not a new continuation line"
+    },
+    {
+      "name": "sp1024_10x560_export_first_hybrid_int8aware_block4proj_keptfp16_80",
+      "run_id": "autoresearch_sp1024_10x560_hybrid_int8aware_block4proj_keptfp16_80",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1104,
+      "shipped_bpb": 2.27221636,
+      "export_gap_bpb": 0.16181636,
+      "note": "hybrid int8-aware block4 mlp.proj plus the proven kept-fp16 recovery corridor bought a new best local shipped point, but only by a clearly sub-threshold margin; treat this as another near-saturation keep rather than a new continuation chain"
+    },
+    {
+      "name": "sp1024_10x560_export_first_int8aware_block4proj120",
+      "run_id": "autoresearch_sp1024_10x560_keep_anchor_int8aware_block4proj120",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.1114,
+      "shipped_bpb": 2.27338678,
+      "export_gap_bpb": 0.16198678,
+      "note": "pure block4 mlp.proj int8-aware recovery improved clean slightly but regressed shipped relative to the current kept anchor, so isolated int8-aware tuning on that tensor is not enough on its own"
+    },
+    {
+      "name": "sp1024_10x560_export_first_keptfp16_recovery120_continue80b",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail_continue120_microtail_keptfp16_recovery120_continue80_keptfp16_continue80_keptfp16",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1124,
+      "shipped_bpb": 2.27250127,
+      "export_gap_bpb": 0.16010127,
+      "note": "third fp16-kept recovery tail still improved shipped, but only by a sub-threshold amount; treat as the last meaningful point on this continuation line and avoid infinite micro-tail chaining"
+    },
+    {
+      "name": "sp1024_10x560_export_first_keptfp16_recovery120_continue80",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail_continue120_microtail_keptfp16_recovery120_continue80_keptfp16",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1145,
+      "shipped_bpb": 2.27347403,
+      "export_gap_bpb": 0.15897403,
+      "note": "second fp16-kept recovery tail improved shipped again on the same restricted parameter set; fixed export sweep reconfirmed projhi_attnhi_fp16 as best on the new checkpoint"
+    },
+    {
+      "name": "sp1024_10x560_export_first_keptfp16_recovery120",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail_continue120_microtail_keptfp16_recovery120",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1175,
+      "shipped_bpb": 2.27454972,
+      "export_gap_bpb": 0.15704972,
+      "note": "targeted recovery tail on the discarded cleaner checkpoint improved shipped again by training only the tensors already kept in fp16; fixed export sweep reconfirmed projhi_attnhi_fp16 as best on the new checkpoint"
+    },
+    {
+      "name": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail_continue120_microtail",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail_continue120_microtail",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.1267,
+      "shipped_bpb": 2.2820589,
+      "export_gap_bpb": 0.1553589,
+      "note": "clean improved again but shipped only moved by noise-level amount while export gap widened; do not promote this over the previous microtail anchor"
+    },
+    {
+      "name": "sp1024_10x560_export_first_continue120_microtail",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr_continue120_microtail",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1611,
+      "shipped_bpb": 2.28212032,
+      "export_gap_bpb": 0.12102032,
+      "note": "fourth continuation tail kept improving shipped bpb; fixed export sweep again confirmed projhi_attnhi_fp16 remains best on the stronger checkpoint"
+    },
+    {
+      "name": "sp1024_10x560_export_first_continue200_ultralowlr",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue200_ultralowlr",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.2203,
+      "shipped_bpb": 2.3148863,
+      "export_gap_bpb": 0.0945863,
+      "note": "third continuation tail on the same 10x560 winner kept compounding gains; checkpoint-specific export sweep reconfirmed projhi_attnhi_fp16 as best"
+    },
+    {
+      "name": "sp1024_10x560_export_first",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_fp16",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.5724,
+      "shipped_bpb": 2.65395691,
+      "export_gap_bpb": 0.08155691,
+      "note": "first real training-side improvement on the 10x560 path; export sweep confirmed projhi_attnhi_fp16 stays best"
+    },
+    {
+      "name": "sp1024_10x560_export_first_continue120",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue120",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.4792,
+      "shipped_bpb": 2.52053662,
+      "export_gap_bpb": 0.04133662,
+      "note": "first low-LR continuation tail on the new 10x560 winner; very large clean and shipped gain with the same export winner"
+    },
+    {
+      "name": "sp1024_10x560_export_first_continue80_lowlr",
+      "run_id": "autoresearch_sp1024_10x560_maxtrain_projhi_attnhi_continue80_lowlr",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.3821,
+      "shipped_bpb": 2.43972002,
+      "export_gap_bpb": 0.05762002,
+      "note": "second lower-LR continuation tail kept improving shipped bpb; export sweep again confirmed projhi_attnhi_fp16 stays best"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fcproj_top5_attn_top5_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fcproj_top5_attn_top5_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5875,
+      "shipped_bpb": 2.77375853,
+      "export_gap_bpb": 0.18625853,
+      "note": "worse shipped than 10x560 export-first despite slightly faster training"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fchi_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_fchi_top4_attn_top4_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5875,
+      "shipped_bpb": 2.75669185,
+      "export_gap_bpb": 0.16919185,
+      "note": "export-only eval on same raw 10x544 checkpoint still behind 10x560 export-first"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fcproj_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_fcproj_top4_attn_top4_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5875,
+      "shipped_bpb": 2.75669496,
+      "export_gap_bpb": 0.16919496,
+      "note": "export-only eval on same raw 10x544 checkpoint still behind 10x560 export-first"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fcproj_top5_attn_top5_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fcproj_top5_attn_top5_fp16",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.5746,
+      "shipped_bpb": 2.74351142,
+      "export_gap_bpb": 0.16891142,
+      "note": "best measured 10x544 training recipe so far but still behind 10x560 export-first"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fchi_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_maxtrain_fchi_top4_attn_top4_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5746,
+      "shipped_bpb": 2.72703829,
+      "export_gap_bpb": 0.15243829,
+      "note": "best measured 10x544 shipped policy so far but still behind 10x560 export-first"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fchi_attnhi_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_maxtrain_fchi_attnhi_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5746,
+      "shipped_bpb": 2.74350945,
+      "export_gap_bpb": 0.16890945,
+      "note": "fc-only int4 plus upper attn fp16 on maxtrain raw checkpoint gave no gain over fcproj_top5"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fchi_attnhi_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fchi_attnhi_export_eval",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5875,
+      "shipped_bpb": 2.7737574,
+      "export_gap_bpb": 0.1862574,
+      "note": "export-only eval on same raw 10x544 longtail checkpoint matched the bad top5 policy"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fcproj_attnhi_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_longtail_fcproj_attnhi_export_eval",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5875,
+      "shipped_bpb": 2.77375853,
+      "export_gap_bpb": 0.18625853,
+      "note": "export-only eval on same raw 10x544 longtail checkpoint gave no gain over fcproj_top5"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x560_kv2_throughput_816k_896ctx_stable_muon97_compiled_longtail_fchi_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x560_kv2_export_eval_fchi_top4_attn_top4_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5858,
+      "shipped_bpb": 2.78814863,
+      "export_gap_bpb": 0.20234863,
+      "note": "top offline 10x560 export policy was worse than measured projhi_attnhi on the real 10x560 raw checkpoint"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fcproj_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_maxtrain_fcproj_top4_attn_top4",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5746,
+      "shipped_bpb": 2.72704111,
+      "export_gap_bpb": 0.15244111,
+      "note": "matches maxtrain fchi_top4 result and still trails 10x560 export-first"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x560_kv2_throughput_816k_896ctx_stable_muon97_compiled_longtail_fchi_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x560_kv2_export_eval_fchi_top4_attn_top4_fp16",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5858,
+      "shipped_bpb": 2.78814863,
+      "export_gap_bpb": 0.20234863,
+      "note": "top offline 10x560 export policy was worse than measured projhi_attnhi on the same raw checkpoint"
+    },
+    {
+      "name": "seeker_sp1024_bpe_sp_10x544_kv2_throughput_832k_896ctx_stable_muon97_compiled_maxtrain_fcproj_top4_attn_top4_fp16",
+      "run_id": "local_sp1024_bpe_sp_10x544_kv2_export_eval_maxtrain_fcproj_top4_attn_top4",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.5746,
+      "shipped_bpb": 2.72704111,
+      "export_gap_bpb": 0.15244111,
+      "note": "maxtrain fcproj_top4 matched the existing fchi_top4 shipped point and stayed behind 10x560 export-first"
+    },
+    {
+      "name": "sp1024_12x544_share6_scratch",
+      "run_id": "lab_sp1024_12x544_kv2_share6_896ctx_modern_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.5675,
+      "shipped_bpb": 2.56969116,
+      "export_gap_bpb": 0.00219116,
+      "note": "shared-depth scratch branch is not globally competitive yet, but it established a new legal family with a near-zero export gap under proj_top6_attn_top6_fp16"
+    },
+    {
+      "name": "sp1024_12x544_share6_continue120",
+      "run_id": "lab_sp1024_12x544_kv2_share6_continue120_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.4793,
+      "shipped_bpb": 2.48159932,
+      "export_gap_bpb": 0.00229932,
+      "note": "short low-LR continuation materially improved the shared-depth branch while preserving the same nearly lossless exporter"
+    },
+    {
+      "name": "sp1024_12x560_share6_scratch",
+      "run_id": "lab_sp1024_12x560_kv2_share6_896ctx_modern_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.5628,
+      "shipped_bpb": 2.56620786,
+      "export_gap_bpb": 0.00340786,
+      "note": "wider shared-depth scratch slightly beat the smaller scratch point while preserving the same exporter, so the width-up branch earned a continuation"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue120",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue120_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.4542,
+      "shipped_bpb": 2.45636427,
+      "export_gap_bpb": 0.00216427,
+      "note": "first continuation on the width-up branch clearly beat the smaller shared-depth branch"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue80_lowlr",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue80_lowlr_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.3384,
+      "shipped_bpb": 2.34223107,
+      "export_gap_bpb": 0.00383107,
+      "note": "second continuation on the width-up branch became the first shared-depth point to beat the old 10x560 local anchor"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue80_ultralowlr",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue80_ultralowlr_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.2596,
+      "shipped_bpb": 2.26380402,
+      "export_gap_bpb": 0.00420402,
+      "note": "new best local autoresearch point; the shared-depth branch is now the leading local line and still uses the same legal exporter"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue80_nanotail",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue80_nanotail_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.2146,
+      "shipped_bpb": 2.21983179,
+      "export_gap_bpb": 0.00523179,
+      "note": "material keep; the same shared-depth exporter stayed best and the branch kept descending"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue80_picotail",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue80_picotail_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1901,
+      "shipped_bpb": 2.19618733,
+      "export_gap_bpb": 0.00608733,
+      "note": "new best local autoresearch point; targeted frontier check kept proj_top6_attn_top6_fp16 on top"
+    },
+    {
+      "name": "sp1024_12x560_share6_continue80_femtotail",
+      "run_id": "lab_sp1024_12x560_kv2_share6_continue80_femtotail_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.179,
+      "shipped_bpb": 2.18650489,
+      "export_gap_bpb": 0.00750489,
+      "note": "final bounded femtotail still produced a real keep; exporter stayed fixed, so the next highest-EV move is structural rather than another identical tail"
+    },
+    {
+      "name": "sp1024_12x576_share6_boot_from_12x560_femtotail_continue120",
+      "run_id": "lab_sp1024_12x576_kv2_share6_boot_from_12x560_femtotail_continue120_m4",
+      "tier": "local",
+      "status": "supported",
+      "clean_bpb": 2.2354,
+      "shipped_bpb": 2.2401515,
+      "export_gap_bpb": 0.0047515,
+      "note": "width-up boot started behind the femtotail anchor but adapted quickly enough to justify one more bounded continuation"
+    },
+    {
+      "name": "sp1024_12x576_share6_continue80_lowlr",
+      "run_id": "lab_sp1024_12x576_kv2_share6_continue80_lowlr_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1714,
+      "shipped_bpb": 2.17698679,
+      "export_gap_bpb": 0.00558679,
+      "note": "first low-LR follow-up on the widened branch became the new local winner; targeted frontier check kept proj_top6_attn_top6_fp16 on top"
+    },
+    {
+      "name": "sp1024_12x576_share6_continue80_ultralowlr",
+      "run_id": "lab_sp1024_12x576_kv2_share6_continue80_ultralowlr_m4",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1378,
+      "shipped_bpb": 2.14541721,
+      "export_gap_bpb": 0.00761721,
+      "note": "second low-LR follow-up on the widened branch improved again and is now the strongest measured local model"
+    },
+    {
+      "name": "u6k_12x608_exactcopy_gate",
+      "run_id": "debug_u6k_12x608_transplant_eval0_exactcopy",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.1992,
+      "shipped_bpb": 2.19966345,
+      "export_gap_bpb": 0.00046345,
+      "note": "larger unigram saved more tokens than u5k but still started from a worse gate, so just increasing vocab again is not the next winner"
+    },
+    {
+      "name": "b4k_12x608_exactcopy_gate",
+      "run_id": "debug_b4k_12x608_transplant_eval0_exactcopy",
+      "tier": "local",
+      "status": "discarded",
+      "clean_bpb": 2.7376,
+      "shipped_bpb": 2.73211769,
+      "export_gap_bpb": -0.00548231,
+      "note": "sideways 4k BPE had slightly worse token counts than u4k and a clearly bad gate, so this branch is killed"
+    },
+    {
+      "name": "u5k_12x608_seq896_continue40",
+      "run_id": "lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy",
+      "tier": "local",
+      "status": "kept",
+      "clean_bpb": 2.1087,
+      "shipped_bpb": 2.10282311,
+      "export_gap_bpb": -0.00587689,
+      "note": "first token-flow retune on the alive u5k checkpoint bought a small real keep, so the next local lever remains on this branch rather than another raw tokenizer family"
+    }
+  ],
+  "loop": [
+    {
+      "rank": 1,
+      "name": "lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy_batch9216_continue40",
+      "track": "M4 local",
+      "source": "measured_u5k_tokenflow_continuation",
+      "hypothesis": "The revived `u5k` branch has already produced one small `seq_len=896` keep. A second bounded token-flow step that only increases train tokens per update may convert the same alive branch into a larger real gain without reopening raw tokenizer search.",
+      "keep_if": "Keep if shipped val_bpb beats the current best measured local autoresearch anchor (2.1028) or if clean improves by >= 0.01 with no shipping regression.",
+      "kill_if": "Kill if the first `step 20` validation is flat to worse than the current anchor or if final shipped does not improve.",
+      "command": "RUN_ID=lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy_batch9216_continue40 INIT_MODEL_PATH=./logs/lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy_mlx_model.npz DATA_PATH=./data/local_u5k_unigram/datasets/fineweb10B_spu5120_local TOKENIZER_PATH=./data/local_u5k_unigram/tokenizers/fineweb_5120_unigram.model VOCAB_SIZE=5120 TRAIN_SEQ_LEN=896 TRAIN_BATCH_TOKENS=9216 VAL_BATCH_SIZE=131072 VAL_MAX_TOKENS=262144 LR_SCHEDULE=constant WARMUP_STEPS=0 LR_WARMUP_ITERS=0 MIN_LR_SCALE=1.0 TIED_EMBED_LR=0.0009 MATRIX_LR=0.0006 SCALAR_LR=0.0006 ITERATIONS=40 MAX_WALLCLOCK_SECONDS=0 VAL_LOSS_EVERY=20 TRAIN_LOG_EVERY=10 LFQAT_FULL_STEP=5 LFQAT_MIN_PROB=0.50 LFQAT_KL_WEIGHT=0.015 LFQAT_FISHER_WEIGHT=0.003 TRAIN_COMPRESSION_AWARE_WEIGHT=0.0008 bash scripts/local/train_lab_u5k_12x608_transplant_lowlr40_m4.sh",
+      "rationale": [
+        "Current alive tokenizer/token-flow anchor: lab_u5k_12x608_kv2_transplant_seq896_continue40_exactcopy at shipped 2.1028.",
+        "The first sideways tokenizer probes (`u6k`, `b4k`) both lost, so the next low-entropy lever stays on the alive `u5k` branch."
+      ]
+    }
+  ]
+}

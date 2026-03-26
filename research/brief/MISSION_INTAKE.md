@@ -1,0 +1,45 @@
+# Mission Intake
+
+- Mission: build the strongest measurable research path to a very strong legal LM under the Parameter Golf rules, targeting `0.8-0.9` shipped `val_bpb` or the strongest evidence-backed route toward it.
+- Objective: operate a resumable two-stage lab:
+  - stage 1: local M4 screening, falsification, branch ranking, exporter validation, and reproducibility work
+  - stage 2: official `8xH100 / 600s` promotion only for locally supported and scalable branches
+- Domain: empirical model research.
+- Ambition level: `breakthrough`.
+- Improvement protocol: `autoresearch-principles`.
+- Research question: which model, tokenizer, exporter, and training-system path has the strongest evidence-backed chance of approaching `0.8-0.9` shipped `val_bpb` under the legal `16MB` artifact cap and official `8xH100 / 10min` budget?
+- Scope in:
+  - local architectural screening
+  - local exporter and quantization frontiers
+  - local tokenization and token-flow work when measurable
+  - training-speed and systems work that later transfers to H100
+  - explicit promotion gates from local to official
+- Scope out / non-goals:
+  - hand-wavy architecture storytelling without comparable runs
+  - repeated low-signal microtails on saturated donors
+  - spending official compute before local evidence earns it
+  - claims that local wins automatically transfer to H100
+- Operator-provided inputs:
+  - the mission should stay durable, resumable, and autonomous
+  - bounded sessions should continue until the path is either supported, replaced, or cleanly refuted
+  - local compute is scarce and should be used for cheap decisive evidence
+  - later H100 work should favor branches that can scale strongly with more data and more compute
+- Success metrics:
+  - primary long-term: shipped `val_bpb` on official challenge runs
+  - primary stage-1: reproducible local shipped `val_bpb`
+  - secondary: clean `val_bpb`, export gap, total bytes, runtime, step speed, and stability
+  - promotion quality: reproducibility, orthogonality, and plausible scaling
+- Constraints:
+  - legal counted artifact `< 16,000,000` decimal bytes
+  - no unsupported external data or evaluation-time tricks
+  - preserve a working baseline and a low-entropy handoff
+  - one tight change unit per bounded experiment
+- Deliverables:
+  - refreshed mission docs and runtime policy
+  - ranked portfolio and promotion gates
+  - measured local experiments with explicit `keep/revert/crash/park`
+  - a precise next action at the end of every session
+- Assumptions:
+  - the current `u4k share10 + bus20 + cross_skip` family is a valid local champion but likely near saturation
+  - local exported quality is useful for ranking but not sufficient proof of official scaling
+  - real breakthrough odds require more than one saturated donor family

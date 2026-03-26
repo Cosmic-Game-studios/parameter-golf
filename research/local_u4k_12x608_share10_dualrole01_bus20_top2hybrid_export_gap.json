@@ -1,0 +1,185 @@
+{
+  "config": {
+    "name": "local_u4k_12x608_lfqat60_m4",
+    "checkpoint": "./logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_fc_top4_m4_mlx_model.npz",
+    "data_path": "./data/local_u4k_unigram/datasets/fineweb10B_spu4096_local",
+    "tokenizer_path": "./data/local_u4k_unigram/tokenizers/fineweb_4096_unigram.model",
+    "vocab_size": 4096,
+    "num_layers": 12,
+    "num_unique_layers": 10,
+    "model_dim": 608,
+    "num_heads": 8,
+    "num_kv_heads": 2,
+    "mlp_mult": 2,
+    "train_seq_len": 1024,
+    "qk_gain_init": 1.45,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0,
+    "python_exe": "./.venv/bin/python",
+    "train_script": "train_gpt_mlx.py",
+    "counted_code_path": "train_gpt.py,quant_reconstruction.py",
+    "train_batch_tokens": 8192,
+    "val_batch_size": 131072,
+    "val_max_tokens": 262144,
+    "lr_schedule": "constant",
+    "lr_warmup_iters": 0,
+    "min_lr_scale": 1.0,
+    "tied_embed_lr": 0.0012,
+    "matrix_lr": 0.00085,
+    "scalar_lr": 0.00085,
+    "int4_block_size": 64,
+    "logs_dir": "logs/export_gap_local_u4k_12x608_lfqat60_seq1024",
+    "reference_policy_name": "fcproj_hi"
+  },
+  "legal_budget_bytes": 16000000,
+  "best_legal": {
+    "name": "fc_top4_attn_top2_fp16",
+    "quant_format": "mixed_int4_int8_packed_v2",
+    "codebook_name": "normal16",
+    "int4_groups": [
+      "fc_top4"
+    ],
+    "fp16_groups": [
+      "attn_top2"
+    ],
+    "lowrank_groups": [],
+    "lowrank_rank": 0,
+    "int4_patterns": [
+      "blocks.6.mlp.fc.weight",
+      "blocks.7.mlp.fc.weight",
+      "blocks.8.mlp.fc.weight",
+      "blocks.9.mlp.fc.weight"
+    ],
+    "fp16_patterns": [
+      "blocks.8.attn.proj.weight",
+      "blocks.9.attn.proj.weight"
+    ],
+    "lowrank_patterns": [],
+    "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_u4k_12x608_lfqat60_seq1024/local_u4k_12x608_lfqat60_m4__4dfe288810__fc_top4_attn_top2_fp16.txt",
+    "compressed_bytes": 15816903,
+    "counted_code_bytes": 94350,
+    "total_bytes": 15911253,
+    "clean_val_loss": 4.5561,
+    "clean_val_bpb": 1.9871,
+    "shipped_val_loss": 4.5502243,
+    "shipped_val_bpb": 1.98453859,
+    "export_gap_bpb": -0.002561409999999986,
+    "legal": true,
+    "score": 1.9836420965000001,
+    "notes": "Moderate mini-hybrid: keep only the top-2 attention projection tensors in fp16 and preserve the rest of the sparse winner."
+  },
+  "reference_policy": null,
+  "top_results": [
+    {
+      "name": "fc_top4_attn_top2_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "codebook_name": "normal16",
+      "int4_groups": [
+        "fc_top4"
+      ],
+      "fp16_groups": [
+        "attn_top2"
+      ],
+      "lowrank_groups": [],
+      "lowrank_rank": 0,
+      "int4_patterns": [
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.8.attn.proj.weight",
+        "blocks.9.attn.proj.weight"
+      ],
+      "lowrank_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_u4k_12x608_lfqat60_seq1024/local_u4k_12x608_lfqat60_m4__4dfe288810__fc_top4_attn_top2_fp16.txt",
+      "compressed_bytes": 15816903,
+      "counted_code_bytes": 94350,
+      "total_bytes": 15911253,
+      "clean_val_loss": 4.5561,
+      "clean_val_bpb": 1.9871,
+      "shipped_val_loss": 4.5502243,
+      "shipped_val_bpb": 1.98453859,
+      "export_gap_bpb": -0.002561409999999986,
+      "legal": true,
+      "score": 1.9836420965000001,
+      "notes": "Moderate mini-hybrid: keep only the top-2 attention projection tensors in fp16 and preserve the rest of the sparse winner."
+    },
+    {
+      "name": "fc_top4_proj_top2_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "codebook_name": "normal16",
+      "int4_groups": [
+        "fc_top4"
+      ],
+      "fp16_groups": [
+        "proj_top2"
+      ],
+      "lowrank_groups": [],
+      "lowrank_rank": 0,
+      "int4_patterns": [
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "lowrank_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_u4k_12x608_lfqat60_seq1024/local_u4k_12x608_lfqat60_m4__4dfe288810__fc_top4_proj_top2_fp16.txt",
+      "compressed_bytes": 16878342,
+      "counted_code_bytes": 94350,
+      "total_bytes": 16972692,
+      "clean_val_loss": 4.5561,
+      "clean_val_bpb": 1.9871,
+      "shipped_val_loss": 4.55023527,
+      "shipped_val_bpb": 1.98454338,
+      "export_gap_bpb": -0.0025566200000000094,
+      "legal": false,
+      "score": 2.591581063,
+      "notes": "Moderate mini-hybrid: keep only the top-2 MLP projection tensors in fp16 on top of the sparse winner."
+    },
+    {
+      "name": "fc_top4_proj_top2_attn_top2_fp16",
+      "quant_format": "mixed_int4_int8_packed_v2",
+      "codebook_name": "normal16",
+      "int4_groups": [
+        "fc_top4"
+      ],
+      "fp16_groups": [
+        "proj_top2",
+        "attn_top2"
+      ],
+      "lowrank_groups": [],
+      "lowrank_rank": 0,
+      "int4_patterns": [
+        "blocks.6.mlp.fc.weight",
+        "blocks.7.mlp.fc.weight",
+        "blocks.8.mlp.fc.weight",
+        "blocks.9.mlp.fc.weight"
+      ],
+      "fp16_patterns": [
+        "blocks.8.attn.proj.weight",
+        "blocks.8.mlp.proj.weight",
+        "blocks.9.attn.proj.weight",
+        "blocks.9.mlp.proj.weight"
+      ],
+      "lowrank_patterns": [],
+      "log_path": "/Users/ronaldschmidt/openai/logs/export_gap_local_u4k_12x608_lfqat60_seq1024/local_u4k_12x608_lfqat60_m4__4dfe288810__fc_top4_proj_top2_attn_top2_fp16.txt",
+      "compressed_bytes": 17852938,
+      "counted_code_bytes": 94350,
+      "total_bytes": 17947288,
+      "clean_val_loss": 4.5561,
+      "clean_val_bpb": 1.9871,
+      "shipped_val_loss": 4.55022955,
+      "shipped_val_bpb": 1.98454088,
+      "export_gap_bpb": -0.002559120000000137,
+      "legal": false,
+      "score": 3.200700188,
+      "notes": "Near-cap mini-hybrid: keep only the top-2 proj+attn pairs in fp16 while holding the rest of the checkpoint on the winning sparse exporter."
+    }
+  ]
+}

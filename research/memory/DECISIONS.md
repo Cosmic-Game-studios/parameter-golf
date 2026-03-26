@@ -1,0 +1,83 @@
+# Decisions
+
+## 2026-03-22
+- Reconfirm the active local champion with a fresh real rerun. [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_fc_top4_m4_repro2_20260322.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_fc_top4_m4_repro2_20260322.txt) matched the same shipped `1.98453111` again, so the local regression bar is reinforced rather than resting on one older reproduction.
+- Reset the mission from “push the local U4K point as low as possible” to a durable two-stage program aimed at the strongest measurable path toward `0.8-0.9` shipped `val_bpb`.
+- Revert the first mission-reset sparse/asymmetric `cross_skip` branch. [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_top2_40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_top2_40_fc_top4_m4.txt) finished at `1.98455752`, so the next cycle should not be another tiny mask tweak on the same donor.
+- Promote the tiny `cross_skip` communication branch from provisional to reproduced. [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_fc_top4_m4_repro1.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip40_fc_top4_m4_repro1.txt) landed on the same exact shipped `1.98453111` as the original keep, so the new best local point is now real enough to use as a hard comparison bar.
+- Kill the first joint `cross_skip + global_bus` retrain on the active donor. [lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_busjoint40_fc_top4_m4.txt](/Users/ronaldschmidt/openai/logs/lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_crossskip_busjoint40_fc_top4_m4.txt) regressed to `1.98454816`, so the bus should stay frozen while we keep exploring tiny communication controls.
+- Refute the first bounded logical block-order remap bracket on the active donor. Every tested remap (`...8,9,8,9`, `...9,9,8,8`, `...6,7`, `...4,5`) lost to the plain modulo order, so do not spend more cycles on remap sweeps without a new donor.
+- Keep the first `cross_skip` communication branch as the active reproduced communication winner. Training only the tiny all-encoder skip router on top of the active donor reached `1.98453111`, and the fixed-export reevaluation kept the same winner family at `1.98453131`.
+- On the new `cross_skip` checkpoint, revert the fixed-export default back to plain `fc_top4_int4`. The old near-cap `QER r64` legalizer and the tiny-fp16 keep both became slightly worse than the base sparse exporter on this checkpoint.
+- Harden the export-gap parser again: log-derived runtime flags must only match real metadata lines, not source-code text embedded in the logs. This matters for `logical_block_order` and `cross_skip` checkpoints.
+- Kill the naive global byte-weighted token-loss branch on the active `share10 dualrole + bus20` donor. It regressed from `1.98453610` to `2.04248476` even under the strongest fixed legalizer, so direct byte-weighting is not the right token-flow move on this checkpoint family.
+- Kill the first gated decoder `second_pass` branch on logical layers `8,9`. On the active donor it finished at `1.99239355` / `1.99238898`, so cheap post-hoc recurrent reuse in this form is not a keep.
+- Fix the export-gap harness for modern local checkpoints: bus and second-pass checkpoints must recover their runtime flags from the source training log. The exact reevaluation of the current QER legalizer stayed at `1.98453631`, which raises confidence in the current fixed-export rank ordering.
+- Replace “pure token-flow next” with “structural remap next” on the current donor. The next orthogonal branch should change where shared/repeated computation lives or how the decoder reuses earlier states, not global loss weighting or a simple gated second pass.
+- Pivot the active mission back to local-first `u4k` work. The repo state had drifted toward stale `sp1024`/H100-prep assumptions, but the operator asked for a local breakthrough loop.
+- Keep partial sharing as the winning orthogonal lever. `first_cycle` with `9-10` unique layers is alive; `10` unique layers is now the strongest measured structural donor.
+- Promote sparse `fc_topN_int4` exporters as a real new exporter family. The old exporter search space was missing the exact tool needed for near-cap partial-sharing checkpoints.
+- Promote `lab_u4k_12x608_kv2_share10_first_cycle_dualrole01_bus20_fc_top4_m4` to the active local structural anchor at `1.98453610`. The tiny global bus is a real lever, but only when trained narrowly.
+- Keep the bus20 checkpoint as the active donor instead of falling back to the older `share10 first_cycle` boot donor.
+- Keep `fc_top4_attn_top1_fp16` as the best fixed-export policy on the current bus20 checkpoint at `1.98453797` and `15,420,393` total bytes. This is a real “too-expensive corridor made small enough to fit” result and it reproduced exactly.
+- Promote `fc_top4_attn_top1_qer_proj_top1_r64` above the tiny-fp16 keep as the strongest fixed legalizer on the current bus20 checkpoint. It reached `1.98453631` and `15,637,017` total bytes, still inside the legal cap.
+- Do not promote `fc_top4_attn_top1_fp16` above the global local anchor yet. It beats the same-harness reevaluated `fc_top4` exporter, but the delta versus the original bus20 training-run anchor is still inside a tiny noise band.
+- Do not promote any fixed exporter above the global local anchor yet. Even the new `QER r64` legalizer is still only within a microscopic noise band of `1.98453610`.
+- Keep the new design rule: tiny top-of-stack fp16 keeps can pay off on top of `fc_top4`, but broader top2/proj-heavy corridors stop being worth their bytes very quickly on this branch.
+- Kill the first boundary-aware bus v2 follow-up as a default direction. Narrowing write layers and switching the bus summary to token-boundary-aware `mean_tail` did not improve clean or shipped quality on the donor.
+- Promote `fc_top4_int4@lab_u4k_12x608_kv2_share10_first_cycle_eval0_int8all_m4` to the new locked local legal winner at `1.98518496`.
+- Keep the saved `share10 first_cycle` boot checkpoint as the donor. The first full-body exporter-aware continuation from that donor regressed, so the donor is stronger than the continued checkpoint.
+- Kill `share8 contiguous_partition` as a partial-sharing direction.
+- Do not default to `share11` next. Its pure-int8 gate is both over cap and weaker than `share10`.
+- Keep `u4k 12x608 share6 first_cycle` as the active structural donor. It is the only measured shared-depth direction that actually lives on local `u4k`.
+- Lock `projhi_attnhi_fp16` as the best current legal exporter for that branch at `2.00187835` and `15,423,066` total. Do not reopen `fcproj_hi` or similar exporters on this checkpoint as the default move.
+- Kill `average_modulo` and `last_cycle` as `u4k share6` boot directions.
+- Kill naive width-up as the default next move on this exact branch. Both `12x640 share6` and `12x704 share6` lost against the `608` shared-depth winner.
+- Kill exporter-aligned kept-fp16 recovery as the default continuation style on this checkpoint. The focused `projhi_attnhi` recovery tail regressed to `2.00507337`.
+- Replace the old orthogonal-next-move decision: partial sharing has now already paid off. The next move should stay on the new `share10` frontier, not fall back to the superseded `share6` donor.
+
+## 2026-03-21
+- Promote the `12x576 share6` codebook+QER line from an exporter side-branch into the active local breakthrough mission.
+- Keep the first QER-aware tail on the `12x576 share6` winner. It improved both the absolute fp16 exporter and the compact codebook frontier on the same checkpoint family.
+- Keep the second bounded low-LR QER-aware tail as the new modern checkpoint winner:
+  - fp16 winner `2.14182222 -> 2.13867183`
+  - compact `codebook_qer_projattn_top6_r192` `2.14263403 -> 2.13976149`
+- Reject the naive tensor-adaptive `quantile16` codebook branch as the current orthogonal winner. On the new checkpoint its best point (`2.14020368`) still lost to the normal-codebook frontier (`2.13976149`) and the fp16 winner (`2.13867183`).
+- Keep the smarter learned-codebook branch, but only in the form that actually won: `lloyd_codebook_qer_projattn_top6_r224` became the new closest compact frontier at `2.13943493` and `14,409,932` total, only `0.00076310` behind the fp16 winner.
+- Do not promote the codebook/QER exporter as a universal export recipe yet. The transfer sweep on the alive `u5k 12x608` checkpoint showed that `fcproj_hi` remains best there at `2.10282351`, while every tested codebook/QER variant regressed and went over cap.
+- Discard the third ultralow continuation on the same line. The fp16 probe regressed to `2.14029037`, so blindly lowering LR again is not the right default move.
+- Treat the local `10x560` continuation/recovery path as saturated for now.
+- Use the current best local `10x560` run as the locked baseline.
+- Spend the next local budget on a new modern dense `sp1024` family instead of more microtails.
+- Start with `10x576 KV2` because it is the cheapest new family with explicit seeker upside above the saturated line.
+- After measuring `10x576 KV2`, kill it as a primary local path. It is clearly below both the `10x560` anchor and the best `10x544` measured checkpoint.
+- Promote `11x560 KV2` to the next cheapest decisive family falsification.
+- After the first `11x560 KV2` early smoke, stop pursuing nearby raw-shape variants by default. The branch was slower and no better than `10x576` in early learning, so the next bounded unit should pivot to export geometry on the stronger `10x560` anchor.
+- Keep the first export-geometry pivot: joint boundary recovery on `blocks.4.{attn.proj,mlp.proj}` improved the best local legal shipped point from `2.27195757` to `2.27104255`.
+- The fixed export sweep on the new joint-boundary checkpoint reconfirmed `projhi_attnhi_fp16` as the best legal exporter, so the remaining local frontier is mostly the near-cap illegal gap rather than an undiscovered legal policy.
+- Promote `12x544 share6` as the strongest new structural local family. The scratch run was clearly worse than the global `10x560` anchor, but its exporter was nearly lossless.
+- Keep `12x544 share6 continue120` as a live branch-local winner. It improved shipped from `2.5697` to `2.4816`, proving the branch responds to continued training.
+- Do not promote shared depth over the global `10x560` anchor yet. The right next lever on the shared-depth family is raw-quality improvement, not more export tinkering.
+- Promote `12x560 share6` as the next bounded local experiment. This is the cheapest decisive test of whether the shared-depth branch can convert spare byte headroom into real quality.
+- Keep `12x560 share6` after the scratch width-up. It preserved the shared-depth branch's shipping behavior and slightly improved raw quality.
+- Promote `12x560 share6 continue120` over `12x544 share6 continue120`. The width-up branch became the strongest shared-depth line.
+- Promote `12x560 share6 continue80_lowlr` over the old `10x560` local anchor.
+- Keep `12x560 share6 continue80_ultralowlr` as the new best local autoresearch point and lock `proj_top6_attn_top6_fp16` as the exporter for this family until disproved.
+- Keep `12x560 share6 continue80_nanotail` as a real further descent on the same branch; do not pivot early while the branch is still dropping by more than noise-level.
+- Keep `12x560 share6 continue80_picotail` as the current local autoresearch anchor and keep `proj_top6_attn_top6_fp16` locked after the targeted frontier check.
+- Treat stalled full sweeps on clearly non-winning conservative policies as tooling issues, not research evidence. Fix the cache bug and use targeted frontier checks when needed.
+- Keep `12x560 share6 continue80_femtotail` as the new local autoresearch anchor and keep `proj_top6_attn_top6_fp16` locked after the new targeted frontier check.
+- After the femtotail keep, pivot the loop to a widened structural pass (`12x576 share6`) instead of another identical continuation on `12x560`.
+- Do not kill a widened shared-depth branch solely because the first boot adaptation is still behind the current winner if runtime stays comparable and the export gap stays tiny.
+- Keep `12x576 share6 continue80_lowlr` and then `continue80_ultralowlr` as the new main line; both beat the old `12x560` anchor and both keep `proj_top6_attn_top6_fp16` on top.
+- After `12x576 share6` became the best modern local checkpoint, stop prioritizing another same-family continuation tail and open an orthogonal quantization breakthrough branch instead.
+- Keep low-rank error reconstruction (`QER`) as a real frontier branch. It did not beat the fp16-keep exporter on absolute shipped quality, but it created a new legal quality/byte curve that dominates plain `int8_all`.
+- Promote `qer_projattn_top6_r256` as the best current quality-per-byte middle point and `qer_projattn_top6_r320` as the best near-cap reconstruction point.
+- Do not judge a new tokenizer family from the naive averaged transplant alone. On `u5k`, exact SentencePiece overlap copying changed the eval-only gate from `3.4642` shipped to `2.1733`.
+- Keep exact-piece-aware tokenizer transplant as the default transfer rule for future tokenizer experiments.
+- Keep `lab_u5k_12x608_kv2_transplant_lowlr40_fcproj_exactcopy` as the first alive tokenizer-transfer branch at `2.10387409` shipped.
+- Do not keep the second `u5k` ultralow continuation. `2.10392536` is effectively flat versus the first keep, so the branch has already reached a local plateau for this continuation style.
+- The next tokenizer move should be sideways, not another larger-unigram exploit tail.
+- Update the practical public target from the README `1.1428` line to the stronger visible open-PR bar around `1.1254`; the leaderboard is lagging, so H100 planning must target the true visible frontier, not the stale table alone.
+- Keep proper optimizer weight decay in the H100 path as a required launch prerequisite. The public frontier uses it repeatedly, and our old Torch stack did not implement it at all.
+- Do not treat the current local plateau as a global wall. The web/literature scan shows we still lack major public-frontier ingredients, especially `int5/int6 + zstd` and `EMA/SWA`, so an immediate H100 launch would still leave obvious gains on the table.
